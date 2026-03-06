@@ -446,8 +446,8 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
   const highlighted = options.highlighted;
 
   // World-space sizes for each node type (matching the sprite pixel sizes roughly)
-  const frameSizes = { normal: 39, notable: 58, keystone: 83, jewel: 58, mastery: 86, classStart: 80, ascendancyStart: 50 };
-  const iconSizes = { normal: 26, notable: 37, keystone: 52, jewel: 0, mastery: 86, classStart: 0, ascendancyStart: 0 };
+  const frameSizes = { normal: 78, notable: 116, keystone: 166, jewel: 116, mastery: 172, classStart: 160, ascendancyStart: 100 };
+  const iconSizes = { normal: 52, notable: 74, keystone: 104, jewel: 0, mastery: 172, classStart: 0, ascendancyStart: 0 };
 
   const frameInstances = [];
   const unallocatedIcons = [];
@@ -584,7 +584,7 @@ export function buildConnectionInstances(treeData, spec, options = {}) {
       connections.push({
         x1: node.x, y1: node.y,
         x2: adjNode.x, y2: adjNode.y,
-        width: bothAllocated ? 3 : 2,
+        width: bothAllocated ? 6 : 4,
         color,
       });
     }
