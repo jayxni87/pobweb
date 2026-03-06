@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "pako": "^2.1.0"
   }
 }
