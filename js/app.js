@@ -963,11 +963,13 @@ class PoBApp {
     }
 
     // Apply tree nodes from the active spec
-    this._applySpecNodes(build.treeNodes || [], build.masteryEffects || []);
+    const activeSpec = build.specs?.[build.activeSpec];
+    const jewelSockets = activeSpec?.jewelSockets || build.jewelSockets || [];
+    this._applySpecNodes(build.treeNodes || [], build.masteryEffects || [], jewelSockets);
     this._updateSpecDropdown();
   }
 
-  _applySpecNodes(nodeIds, masteryEffects = []) {
+  _applySpecNodes(nodeIds, masteryEffects = [], jewelSockets = []) {
     if (!this.treeData) return;
     const classId = this.treeData.classNameToId(this.className);
     this.treeAllocation = new TreeAllocation(this.treeData, classId >= 0 ? classId : 0);
@@ -981,6 +983,27 @@ class PoBApp {
     // Apply mastery selections
     for (const { nodeId, effectId } of masteryEffects) {
       this.treeAllocation.spec.setMasteryEffect(nodeId, effectId);
+    }
+
+    // Apply jewel sockets
+    if (jewelSockets.length > 0 && this._clusterData) {
+      for (const { nodeId, itemText } of jewelSockets) {
+        const parsedJewel = parseClusterJewel(itemText, this._clusterData);
+        if (parsedJewel.clusterJewelValid) {
+          const socketNode = this.treeData.nodes[nodeId];
+          if (socketNode?.expansionJewel) {
+            const constants = {
+              orbitRadii: [0, 82, 162, 335, 493, 662, 846],
+              skillsPerOrbit: [1, 6, 16, 16, 40, 72, 72],
+            };
+            const subgraph = buildSubgraph(parsedJewel, socketNode, this.treeData, this._clusterData, constants);
+            if (subgraph) {
+              this.treeAllocation.spec.jewels.set(nodeId, { ...parsedJewel, _itemText: itemText });
+              this.treeAllocation.spec._applySubgraph(nodeId, subgraph);
+            }
+          }
+        }
+      }
     }
 
     if (this.activeTab === 'Tree') {
@@ -1004,7 +1027,7 @@ class PoBApp {
       if (classSelect) classSelect.value = this.className;
     }
 
-    this._applySpecNodes(spec.nodes, spec.masteryEffects || []);
+    this._applySpecNodes(spec.nodes, spec.masteryEffects || [], spec.jewelSockets || []);
   }
 
   _updateSpecDropdown() {
@@ -1039,12 +1062,20 @@ class PoBApp {
       }
     }
 
+    const jewelSockets = [];
+    if (this.treeAllocation?.spec.jewels) {
+      for (const [nodeId, jewel] of this.treeAllocation.spec.jewels) {
+        jewelSockets.push({ nodeId, itemText: jewel._itemText || '' });
+      }
+    }
+
     return new Build({
       name: this.buildName,
       className: this.className,
       level: this.level,
       treeNodes: nodeIds,
       masteryEffects,
+      jewelSockets,
     });
   }
 }

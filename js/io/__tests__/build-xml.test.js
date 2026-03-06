@@ -165,3 +165,60 @@ describe('xmlToBuild', () => {
     expect(restored.masteryEffects).toEqual([]);
   });
 });
+
+describe('cluster jewel XML persistence', () => {
+  it('serializes jewel sockets to XML', () => {
+    const build = new Build({
+      className: 'Scion',
+      level: 90,
+      treeNodes: [100, 200],
+      jewelSockets: [
+        { nodeId: 26725, itemText: 'Large Cluster Jewel\nAdds 8 Passive Skills' },
+      ],
+    });
+    const xml = buildToXml(build);
+    expect(xml).toContain('<Sockets>');
+    expect(xml).toContain('nodeId="26725"');
+    expect(xml).toContain('Large Cluster Jewel');
+  });
+
+  it('parses jewel sockets from XML', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build className="Scion" level="90" ascendClassName="" buildName="Test"/>
+  <Tree>
+    <Spec treeVersion="3_25" classId="0" ascendClassId="0" nodes="100,200">
+      <Sockets>
+        <Socket nodeId="26725" itemText="Large Cluster Jewel&#10;Adds 8 Passive Skills"/>
+      </Sockets>
+    </Spec>
+  </Tree>
+  <Skills></Skills>
+  <Items></Items>
+  <Config></Config>
+  <Notes></Notes>
+</PathOfBuilding>`;
+
+    const build = xmlToBuild(xml);
+    expect(build.specs[0].jewelSockets).toBeDefined();
+    expect(build.specs[0].jewelSockets.length).toBe(1);
+    expect(build.specs[0].jewelSockets[0].nodeId).toBe(26725);
+    expect(build.specs[0].jewelSockets[0].itemText).toContain('Large Cluster Jewel');
+  });
+
+  it('round-trips jewel socket data', () => {
+    const build = new Build({
+      className: 'Scion',
+      level: 90,
+      treeNodes: [100],
+      jewelSockets: [
+        { nodeId: 26725, itemText: 'Large Cluster Jewel\nAdds 8 Passive Skills' },
+      ],
+    });
+    const xml = buildToXml(build);
+    const parsed = xmlToBuild(xml);
+    expect(parsed.jewelSockets.length).toBe(1);
+    expect(parsed.jewelSockets[0].nodeId).toBe(26725);
+    expect(parsed.jewelSockets[0].itemText).toContain('Large Cluster Jewel');
+  });
+});

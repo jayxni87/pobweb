@@ -9,7 +9,8 @@ export class Build {
     this.ascendancy = opts.ascendancy !== undefined ? opts.ascendancy : '';
     this.treeNodes = opts.treeNodes || [];
     this.masteryEffects = opts.masteryEffects || []; // [{nodeId, effectId}]
-    this.specs = opts.specs || [];       // [{title, classId, ascendClassId, treeVersion, nodes, masteryEffects}]
+    this.jewelSockets = opts.jewelSockets || []; // [{nodeId, itemText}]
+    this.specs = opts.specs || [];       // [{title, classId, ascendClassId, treeVersion, nodes, masteryEffects, jewelSockets}]
     this.activeSpec = opts.activeSpec || 0; // 0-indexed
     this.skills = opts.skills || [];
     this.items = opts.items || [];
@@ -47,6 +48,13 @@ export function buildToXml(build) {
       masteryAttr = ` masteryEffects="${build.masteryEffects.map(m => `{${m.nodeId},${m.effectId}}`).join(',')}"`;
     }
     xml += `    <Spec treeVersion="3_25" classId="${classId >= 0 ? classId : 0}" ascendClassId="0" nodes="${build.treeNodes.join(',')}"${masteryAttr}>\n`;
+    if (build.jewelSockets && build.jewelSockets.length > 0) {
+      xml += '      <Sockets>\n';
+      for (const socket of build.jewelSockets) {
+        xml += `        <Socket nodeId="${socket.nodeId}" itemText="${escapeXml(socket.itemText)}"/>\n`;
+      }
+      xml += '      </Sockets>\n';
+    }
     xml += '    </Spec>\n';
   }
   xml += '  </Tree>\n';
@@ -131,6 +139,18 @@ function parseXmlSimple(xml) {
     const nodesStr = extractAttr(specAttrs, 'nodes') || '';
     const nodes = nodesStr ? nodesStr.split(',').map(Number).filter(n => !isNaN(n)) : [];
     const classId = parseInt(extractAttr(specAttrs, 'classId') || '0', 10);
+    // Parse jewel sockets from within the spec block
+    const specBlock = specMatch[0];
+    const socketRegex = /<Socket\s+([^>]*)\/>/g;
+    const jewelSockets = [];
+    let socketMatch;
+    while ((socketMatch = socketRegex.exec(specBlock)) !== null) {
+      const sAttrs = socketMatch[1];
+      const nodeId = parseInt(extractAttr(sAttrs, 'nodeId') || '0', 10);
+      const itemText = extractAttr(sAttrs, 'itemText') || '';
+      if (nodeId) jewelSockets.push({ nodeId, itemText });
+    }
+
     build.specs.push({
       title: extractAttr(specAttrs, 'title') || `Tree ${specIdx + 1}`,
       classId,
@@ -138,6 +158,7 @@ function parseXmlSimple(xml) {
       treeVersion: extractAttr(specAttrs, 'treeVersion') || '',
       nodes,
       masteryEffects: parseMasteryEffectsAttr(extractAttr(specAttrs, 'masteryEffects')),
+      jewelSockets,
     });
     specIdx++;
   }
@@ -148,6 +169,7 @@ function parseXmlSimple(xml) {
     const active = build.specs[build.activeSpec];
     build.treeNodes = active.nodes;
     build.masteryEffects = active.masteryEffects || [];
+    build.jewelSockets = active.jewelSockets || [];
     if (!build.className) {
       build.className = classNames[active.classId] || 'Scion';
     }
@@ -241,6 +263,12 @@ function parseDom(doc) {
     const nodesStr = specEl.getAttribute('nodes') || '';
     const nodes = nodesStr ? nodesStr.split(',').map(Number).filter(n => !isNaN(n)) : [];
     const classId = parseInt(specEl.getAttribute('classId') || '0', 10);
+    const jewelSockets = [];
+    specEl.querySelectorAll('Socket').forEach(socketEl => {
+      const nodeId = parseInt(socketEl.getAttribute('nodeId') || '0', 10);
+      const itemText = socketEl.getAttribute('itemText') || '';
+      if (nodeId) jewelSockets.push({ nodeId, itemText });
+    });
     build.specs.push({
       title: specEl.getAttribute('title') || `Tree ${i + 1}`,
       classId,
@@ -248,6 +276,7 @@ function parseDom(doc) {
       treeVersion: specEl.getAttribute('treeVersion') || '',
       nodes,
       masteryEffects: parseMasteryEffectsAttr(specEl.getAttribute('masteryEffects')),
+      jewelSockets,
     });
   });
 
@@ -257,6 +286,7 @@ function parseDom(doc) {
     const active = build.specs[build.activeSpec];
     build.treeNodes = active.nodes;
     build.masteryEffects = active.masteryEffects || [];
+    build.jewelSockets = active.jewelSockets || [];
     if (!build.className && active.classId !== undefined) {
       build.className = classNames[active.classId] || 'Scion';
     }
