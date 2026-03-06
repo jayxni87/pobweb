@@ -1,0 +1,145 @@
+/* PoBWeb - Tab & Layout Styles */
+
+/* App layout */
+.pob-app {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  grid-template-columns: 1fr 250px;
+  height: 100vh;
+  background: #0d0d1a;
+  color: #ccc;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-size: 13px;
+}
+
+/* Menu bar */
+.pob-menubar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #1a1a2e;
+  border-bottom: 1px solid #333;
+}
+
+.pob-menubar .build-name {
+  font-size: 15px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.pob-menubar .class-select,
+.pob-menubar .level-input {
+  background: #2a2a3e;
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #ddd;
+  padding: 3px 8px;
+  font-size: 13px;
+}
+
+.pob-menubar .level-input {
+  width: 50px;
+  text-align: center;
+}
+
+/* Tab bar */
+.pob-tabbar {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0;
+  background: #151528;
+  border-bottom: 2px solid #333;
+}
+
+.pob-tab {
+  padding: 8px 20px;
+  cursor: pointer;
+  color: #888;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+  user-select: none;
+}
+
+.pob-tab:hover {
+  color: #bbb;
+}
+
+.pob-tab.active {
+  color: #fff;
+  border-bottom-color: #88aaff;
+}
+
+/* Tab content */
+.pob-content {
+  grid-column: 1;
+  overflow: auto;
+  position: relative;
+}
+
+/* Stat sidebar */
+.pob-sidebar {
+  grid-column: 2;
+  background: #12122a;
+  border-left: 1px solid #333;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.stat-section {
+  margin-bottom: 16px;
+}
+
+.stat-header {
+  font-size: 12px;
+  font-weight: bold;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #2a2a3e;
+  padding-bottom: 4px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.stat-label {
+  color: #999;
+}
+
+.stat-value {
+  color: #ddd;
+  font-weight: 500;
+}
+
+.stat-value.life { color: #e05030; }
+.stat-value.mana { color: #7070ff; }
+.stat-value.es { color: #88ffff; }
+.stat-value.dps { color: #ffcc00; }
+.stat-value.fire { color: #e05030; }
+.stat-value.cold { color: #30b0e0; }
+.stat-value.lightning { color: #e0d030; }
+.stat-value.chaos { color: #c050e0; }
+
+/* Status bar */
+.pob-statusbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 12px;
+  background: #1a1a2e;
+  border-top: 1px solid #333;
+  font-size: 12px;
+  color: #888;
+}
+
+.pob-statusbar .points {
+  color: #aaa;
+}
