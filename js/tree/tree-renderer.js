@@ -657,6 +657,10 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
   const masteryInactiveIcons = [];
   const masteryConnectedIcons = [];
   const masteryActiveIcons = [];
+  const jewelOverlayInstances = [];
+
+  // Map of socket nodeId -> equipped cluster jewel baseName (from spec.jewels)
+  const equippedJewels = spec?.jewels || new Map();
 
   const searchActive = highlighted && highlighted.size > 0;
 
@@ -672,8 +676,17 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
     const hasMasteryEffect = node.type === 'mastery' && spec && spec.masterySelections?.get(node.id) != null;
     // Mastery nodes only get a frame when they have an effect selected
     if (node.type !== 'mastery' || hasMasteryEffect) {
-      const frameState = isHighlighted ? 'highlighted' : (allocated ? 'allocated' : 'unallocated');
-      const frameUV = spriteData.getFrameUV(node.type, frameState);
+      let frameUV;
+      let frameSize = frameSizes[node.type] || 39;
+      if (node.type === 'jewel') {
+        // Jewel sockets use different frames depending on context
+        frameUV = getJewelFrameUV(node, allocated, isHighlighted, spriteData);
+        // Outer (expansion) and cluster jewel sockets are slightly larger
+        if (node.expansionJewel || node._isClusterNode) frameSize = 130;
+      } else {
+        const frameState = isHighlighted ? 'highlighted' : (allocated ? 'allocated' : 'unallocated');
+        frameUV = spriteData.getFrameUV(node.type, frameState);
+      }
       if (frameUV) {
         // Gold tint for active mastery frame
         const frameColor = hasMasteryEffect
@@ -682,10 +695,28 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
         frameInstances.push({
           x: node.x,
           y: node.y,
-          size: frameSizes[node.type] || 39,
+          size: frameSize,
           spriteRect: frameUV,
           color: frameColor,
         });
+      }
+
+      // Equipped cluster jewel overlay (colored gem icon on the socket)
+      if (node.type === 'jewel' && equippedJewels.has(node.id)) {
+        const jewel = equippedJewels.get(node.id);
+        const overlayName = getClusterJewelOverlay(jewel.baseName, node);
+        if (overlayName) {
+          const overlayUV = spriteData.getSpriteUV('jewel', overlayName);
+          if (overlayUV) {
+            jewelOverlayInstances.push({
+              x: node.x,
+              y: node.y,
+              size: frameSize,
+              spriteRect: overlayUV,
+              color: [1, 1, 1, dimAlpha],
+            });
+          }
+        }
       }
     }
 
@@ -749,6 +780,9 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
   }
   if (masteryActiveIcons.length > 0) {
     layers.push({ textureUrl: 'assets/tree/mastery-active-selected-3.png', instances: masteryActiveIcons, circleClip: true });
+  }
+  if (jewelOverlayInstances.length > 0) {
+    layers.push({ textureUrl: 'assets/tree/jewel-3.png', instances: jewelOverlayInstances });
   }
 
   return layers;
@@ -862,4 +896,36 @@ export function buildConnectionInstances(treeData, spec, options = {}) {
   }
 
   return connections;
+}
+
+// Get the correct frame sprite UV for a jewel socket node
+function getJewelFrameUV(node, allocated, isHighlighted, spriteData) {
+  const isOuter = node.expansionJewel && !node._isClusterNode;
+  const isClusterSocket = node._isClusterNode && node.type === 'jewel';
+
+  if (isClusterSocket) {
+    // Cluster sub-sockets use size-specific frames
+    const sizeName = node.expansionJewel?.size === 1 ? 'Medium'
+      : node.expansionJewel?.size === 0 ? 'Small' : 'Large';
+    const state = isHighlighted ? 'CanAllocate' : 'Normal';
+    return spriteData.getSpriteUV('frame', `JewelSocketClusterAlt${state}1${sizeName}`);
+  }
+
+  if (isOuter) {
+    // Outer expansion sockets use Alt frame variants
+    const state = isHighlighted ? 'CanAllocate' : (allocated ? 'Active' : 'Normal');
+    return spriteData.getSpriteUV('frame', `JewelSocketAlt${state}`);
+  }
+
+  // Regular jewel sockets
+  const state = isHighlighted ? 'highlighted' : (allocated ? 'allocated' : 'unallocated');
+  return spriteData.getFrameUV('jewel', state);
+}
+
+// Get the overlay sprite name for an equipped cluster jewel
+function getClusterJewelOverlay(baseName) {
+  if (baseName === 'Large Cluster Jewel') return 'JewelSocketActiveAltPurple';
+  if (baseName === 'Medium Cluster Jewel') return 'JewelSocketActiveAltBlue';
+  if (baseName === 'Small Cluster Jewel') return 'JewelSocketActiveAltRed';
+  return null;
 }

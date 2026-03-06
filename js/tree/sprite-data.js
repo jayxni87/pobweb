@@ -101,6 +101,7 @@ export class SpriteData {
       masteryInactive: this.getSheetPath('masteryInactive'),
       masteryConnected: this.getSheetPath('masteryConnected'),
       masteryActiveSelected: this.getSheetPath('masteryActiveSelected'),
+      jewel: this.getSheetPath('jewel'),
       ascendancy: this.getSheetPath('ascendancy'),
       groupBackground: this.getSheetPath('groupBackground'),
       ascendancyBackground: this.getSheetPath('ascendancyBackground'),
