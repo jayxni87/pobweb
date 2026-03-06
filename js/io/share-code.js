@@ -5,16 +5,18 @@ import pako from 'pako';
 
 export function encodeShareCode(xmlString) {
   const compressed = pako.deflate(new TextEncoder().encode(xmlString));
-  // Standard base64 encoding
   let binary = '';
   for (let i = 0; i < compressed.length; i++) {
     binary += String.fromCharCode(compressed[i]);
   }
-  return btoa(binary);
+  // PoB uses URL-safe base64 (- and _ instead of + and /)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_');
 }
 
 export function decodeShareCode(shareCode) {
-  const binary = atob(shareCode);
+  // PoB uses URL-safe base64 (- and _ instead of + and /)
+  const standard = shareCode.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(standard);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
