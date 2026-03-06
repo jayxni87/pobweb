@@ -221,4 +221,42 @@ describe('cluster jewel XML persistence', () => {
     expect(parsed.jewelSockets[0].nodeId).toBe(26725);
     expect(parsed.jewelSockets[0].itemText).toContain('Large Cluster Jewel');
   });
+
+  it('parses PoB format with itemId referencing Items section', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build className="Scion" level="90" ascendClassName="" buildName="Test"/>
+  <Tree>
+    <Spec treeVersion="3_25" classId="0" ascendClassId="0" nodes="100,200">
+      <Sockets>
+        <Socket itemId="13" nodeId="55190"/>
+      </Sockets>
+    </Spec>
+  </Tree>
+  <Skills></Skills>
+  <Items>
+    <Item id="13">
+Rarity: RARE
+New Item
+Large Cluster Jewel
+Crafted: true
+Prefix: {range:0.5}AfflictionNotableUnwaveringlyEvil
+Cluster Jewel Skill: affliction_chaos_damage
+Cluster Jewel Node Count: 8
+Implicits: 3
+{crafted}Adds 8 Passive Skills
+{crafted}2 Added Passive Skills are Jewel Sockets
+{crafted}Added Small Passive Skills grant: 12% increased Chaos Damage
+1 Added Passive Skill is Unwaveringly Evil
+    </Item>
+  </Items>
+  <Config></Config>
+  <Notes></Notes>
+</PathOfBuilding>`;
+
+    const build = xmlToBuild(xml);
+    expect(build.specs[0].jewelSockets.length).toBe(1);
+    expect(build.specs[0].jewelSockets[0].nodeId).toBe(55190);
+    expect(build.specs[0].jewelSockets[0].itemText).toContain('Large Cluster Jewel');
+  });
 });

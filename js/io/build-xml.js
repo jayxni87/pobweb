@@ -124,6 +124,18 @@ function parseXmlSimple(xml) {
     build.name = extractAttr(attrs, 'buildName') || '';
   }
 
+  // Parse items first (needed to resolve Socket itemId references)
+  const itemById = {};
+  const itemRegexEarly = /<Item\s+([^>]*)>([\s\S]*?)<\/Item>/g;
+  let earlyItemMatch;
+  while ((earlyItemMatch = itemRegexEarly.exec(xml)) !== null) {
+    const iAttrs = earlyItemMatch[1];
+    const itemId = extractAttr(iAttrs, 'id');
+    if (itemId) {
+      itemById[itemId] = unescapeXml(earlyItemMatch[2]);
+    }
+  }
+
   // Parse activeSpec from <Tree activeSpec="...">
   const treeMatch = xml.match(/<Tree\s+([^>]*)>/);
   const activeSpecStr = treeMatch ? extractAttr(treeMatch[1], 'activeSpec') : null;
@@ -147,7 +159,15 @@ function parseXmlSimple(xml) {
     while ((socketMatch = socketRegex.exec(specBlock)) !== null) {
       const sAttrs = socketMatch[1];
       const nodeId = parseInt(extractAttr(sAttrs, 'nodeId') || '0', 10);
-      const itemText = extractAttr(sAttrs, 'itemText') || '';
+      if (!nodeId) continue;
+      // Support both our format (itemText attr) and PoB format (itemId referencing Items)
+      let itemText = extractAttr(sAttrs, 'itemText') || '';
+      if (!itemText) {
+        const itemId = extractAttr(sAttrs, 'itemId');
+        if (itemId && itemById[itemId]) {
+          itemText = itemById[itemId];
+        }
+      }
       if (nodeId) jewelSockets.push({ nodeId, itemText });
     }
 
@@ -192,11 +212,20 @@ function parseXmlSimple(xml) {
     build.skills.push(group);
   }
 
-  // Items
-  const itemRegex = /<Item\s+slot="([^"]*)">([\s\S]*?)<\/Item>/g;
+  // Items — support both formats: <Item slot="..."> and <Item id="N">
+  const itemRegex = /<Item\s+([^>]*)>([\s\S]*?)<\/Item>/g;
   let iMatch;
   while ((iMatch = itemRegex.exec(xml)) !== null) {
-    build.items.push({ slot: iMatch[1], raw: unescapeXml(iMatch[2]) });
+    const iAttrs = iMatch[1];
+    const rawText = unescapeXml(iMatch[2]);
+    const itemId = extractAttr(iAttrs, 'id');
+    const slot = extractAttr(iAttrs, 'slot');
+    if (itemId) {
+      itemById[itemId] = rawText;
+    }
+    if (slot) {
+      build.items.push({ slot, raw: rawText });
+    }
   }
 
   // Config
@@ -253,6 +282,15 @@ function parseDom(doc) {
     build.name = buildEl.getAttribute('buildName') || '';
   }
 
+  // Build item-by-id map (needed to resolve Socket itemId references)
+  const domItemById = {};
+  doc.querySelectorAll('Item').forEach(itemEl => {
+    const itemId = itemEl.getAttribute('id');
+    if (itemId) {
+      domItemById[itemId] = itemEl.textContent || '';
+    }
+  });
+
   // Parse all Spec elements from the Tree section
   const treeEl = doc.querySelector('Tree');
   const activeSpecAttr = treeEl?.getAttribute('activeSpec');
@@ -266,8 +304,16 @@ function parseDom(doc) {
     const jewelSockets = [];
     specEl.querySelectorAll('Socket').forEach(socketEl => {
       const nodeId = parseInt(socketEl.getAttribute('nodeId') || '0', 10);
-      const itemText = socketEl.getAttribute('itemText') || '';
-      if (nodeId) jewelSockets.push({ nodeId, itemText });
+      if (!nodeId) return;
+      // Support both our format (itemText) and PoB format (itemId)
+      let itemText = socketEl.getAttribute('itemText') || '';
+      if (!itemText) {
+        const itemId = socketEl.getAttribute('itemId');
+        if (itemId && domItemById[itemId]) {
+          itemText = domItemById[itemId];
+        }
+      }
+      jewelSockets.push({ nodeId, itemText });
     });
     build.specs.push({
       title: specEl.getAttribute('title') || `Tree ${i + 1}`,

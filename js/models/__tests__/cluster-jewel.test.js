@@ -70,4 +70,52 @@ Added Small Passive Skills grant: 12% increased Fire Damage`;
     const result = parseClusterJewel(text, clusterData);
     expect(result.clusterJewelSocketCount).toBe(1);
   });
+
+  it('parses PoB extended item text with {crafted} tags and metadata', () => {
+    const text = `Rarity: RARE
+New Item
+Large Cluster Jewel
+Crafted: true
+Prefix: {range:0.5}AfflictionNotableUnwaveringlyEvil
+Prefix: {range:0.5}AfflictionNotableWickedPall_
+Suffix: {range:0.5}AfflictionNotableUnholyGrace_
+Suffix: None
+Cluster Jewel Skill: affliction_chaos_damage
+Cluster Jewel Node Count: 8
+LevelReq: 40
+Implicits: 3
+{crafted}Adds 8 Passive Skills
+{crafted}2 Added Passive Skills are Jewel Sockets
+{crafted}Added Small Passive Skills grant: 12% increased Chaos Damage
+1 Added Passive Skill is Unholy Grace
+1 Added Passive Skill is Unwaveringly Evil
+1 Added Passive Skill is Wicked Pall`;
+
+    const result = parseClusterJewel(text, clusterData);
+    expect(result.baseName).toBe('Large Cluster Jewel');
+    expect(result.clusterJewelSkill).toBe('affliction_chaos_damage');
+    expect(result.clusterJewelNodeCount).toBe(8);
+    expect(result.clusterJewelSocketCount).toBe(2);
+    expect(result.clusterJewelNotables).toContain('Unholy Grace');
+    expect(result.clusterJewelNotables).toContain('Unwaveringly Evil');
+    expect(result.clusterJewelNotables).toContain('Wicked Pall');
+    expect(result.clusterJewelValid).toBe(true);
+  });
+
+  it('parses PoB item text with Cluster Jewel Skill field but no enchant line', () => {
+    const text = `Small Cluster Jewel
+Cluster Jewel Skill: affliction_armour
+Cluster Jewel Node Count: 2
+Implicits: 2
+{crafted}Adds 2 Passive Skills
+{crafted}Added Small Passive Skills grant: 15% increased Armour
+1 Added Passive Skill is Enduring Composure`;
+
+    const result = parseClusterJewel(text, clusterData);
+    expect(result.baseName).toBe('Small Cluster Jewel');
+    expect(result.clusterJewelSkill).toBe('affliction_armour');
+    expect(result.clusterJewelNodeCount).toBe(2);
+    expect(result.clusterJewelNotables).toEqual(['Enduring Composure']);
+    expect(result.clusterJewelValid).toBe(true);
+  });
 });
