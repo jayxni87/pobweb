@@ -589,9 +589,10 @@ export function buildConnectionInstances(treeData, spec, options = {}) {
       const adjNode = treeData.nodes[adjId];
       if (!adjNode) continue;
 
-      // Hide long lines between class starts and ascendancy starts
-      if ((node.type === 'classStart' && adjNode.type === 'ascendancyStart') ||
-          (node.type === 'ascendancyStart' && adjNode.type === 'classStart')) continue;
+      // Hide connections between ascendancy sub-trees and the main tree
+      const nodeIsAsc = !!(node.ascendancy || node.type === 'ascendancyStart');
+      const adjIsAsc = !!(adjNode.ascendancy || adjNode.type === 'ascendancyStart');
+      if (nodeIsAsc !== adjIsAsc) continue;
 
       const bothAllocated = spec && spec.isAllocated(node.id) && spec.isAllocated(adjId);
       const color = bothAllocated ? CONNECTION_COLORS.active : CONNECTION_COLORS.inactive;
