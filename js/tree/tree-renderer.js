@@ -447,7 +447,7 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
 
   // World-space sizes for each node type (matching the sprite pixel sizes roughly)
   const frameSizes = { normal: 78, notable: 116, keystone: 166, jewel: 116, mastery: 172, classStart: 160, ascendancyStart: 100 };
-  const iconSizes = { normal: 52, notable: 74, keystone: 104, jewel: 0, mastery: 172, classStart: 0, ascendancyStart: 0 };
+  const iconSizes = { normal: 78, notable: 116, keystone: 166, jewel: 0, mastery: 172, classStart: 0, ascendancyStart: 0 };
 
   const frameInstances = [];
   const unallocatedIcons = [];
