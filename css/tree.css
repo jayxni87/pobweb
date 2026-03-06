@@ -1,9 +1,8 @@
 /* PoBWeb - Tree Tab Styles */
 
 .tree-tab {
-  position: relative;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
 }
 
 .tree-canvas {

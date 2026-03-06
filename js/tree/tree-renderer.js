@@ -453,7 +453,7 @@ export class TreeRenderer {
 
 // Utility: Build node instances from TreeData + PassiveSpec
 export function buildNodeInstances(treeData, spec, options = {}) {
-  const nodeSize = options.nodeSize || { normal: 20, notable: 30, keystone: 40, socket: 25, classStart: 30, ascendancyStart: 25, mastery: 25 };
+  const nodeSize = options.nodeSize || { normal: 20, notable: 30, keystone: 40, socket: 25, jewel: 25, classStart: 30, ascendancyStart: 25, mastery: 25 };
   const instances = [];
 
   for (const node of Object.values(treeData.nodes)) {
