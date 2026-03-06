@@ -1,5 +1,6 @@
 node_modules/
 js/data/*
+!js/data/cluster-jewels.json
 !js/data/tree/
 js/data/tree/*
 !js/data/tree/3_25.json

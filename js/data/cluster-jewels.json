@@ -1,0 +1,1208 @@
+{
+  "jewels": {
+    "Small Cluster Jewel": {
+      "size": "Small",
+      "sizeIndex": 0,
+      "minNodes": 2,
+      "maxNodes": 3,
+      "smallIndicies": [
+        0,
+        4,
+        2
+      ],
+      "notableIndicies": [
+        4
+      ],
+      "socketIndicies": [
+        4
+      ],
+      "totalIndicies": 6,
+      "skills": {
+        "affliction_maximum_life": {
+          "name": "Life",
+          "icon": "Art/2DArt/SkillIcons/passives/IncreasedMaximumLifeNode.png",
+          "tag": "affliction_maximum_life",
+          "stats": [
+            "4% increased maximum Life"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 4% increased maximum Life"
+          ]
+        },
+        "affliction_maximum_energy_shield": {
+          "name": "Energy Shield",
+          "icon": "Art/2DArt/SkillIcons/passives/EnergyShieldNode.png",
+          "tag": "affliction_maximum_energy_shield",
+          "stats": [
+            "6% increased maximum Energy Shield"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 6% increased maximum Energy Shield"
+          ]
+        },
+        "affliction_maximum_mana": {
+          "name": "Mana",
+          "icon": "Art/2DArt/SkillIcons/passives/MaxManaNode.png",
+          "tag": "affliction_maximum_mana",
+          "stats": [
+            "6% increased maximum Mana"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 6% increased maximum Mana"
+          ]
+        },
+        "affliction_armour": {
+          "name": "Armour",
+          "icon": "Art/2DArt/SkillIcons/passives/ArmourNode.png",
+          "tag": "affliction_armour",
+          "stats": [
+            "15% increased Armour"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 15% increased Armour"
+          ]
+        },
+        "affliction_evasion": {
+          "name": "Evasion",
+          "icon": "Art/2DArt/SkillIcons/passives/EvasionNode.png",
+          "tag": "affliction_evasion",
+          "stats": [
+            "15% increased Evasion Rating"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 15% increased Evasion Rating"
+          ]
+        },
+        "affliction_chance_to_block_attack_damage": {
+          "name": "Chance to Block Attack Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/BlockAttackDmgNode.png",
+          "tag": "affliction_chance_to_block",
+          "stats": [
+            "+2% Chance to Block Attack Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: +2% Chance to Block Attack Damage"
+          ]
+        },
+        "affliction_chance_to_block_spell_damage": {
+          "name": "Chance to Block Spell Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/BlockSpellDmgNode.png",
+          "tag": "affliction_chance_to_block",
+          "stats": [
+            "2% Chance to Block Spell Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 2% Chance to Block Spell Damage"
+          ]
+        },
+        "affliction_fire_resistance": {
+          "name": "Fire Resistance",
+          "icon": "Art/2DArt/SkillIcons/passives/FireResistNode.png",
+          "tag": "affliction_fire_resistance",
+          "stats": [
+            "+15% to Fire Resistance"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: +15% to Fire Resistance"
+          ]
+        },
+        "affliction_cold_resistance": {
+          "name": "Cold Resistance",
+          "icon": "Art/2DArt/SkillIcons/passives/ColdResistNode.png",
+          "tag": "affliction_cold_resistance",
+          "stats": [
+            "+15% to Cold Resistance"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: +15% to Cold Resistance"
+          ]
+        },
+        "affliction_lightning_resistance": {
+          "name": "Lightning Resistance",
+          "icon": "Art/2DArt/SkillIcons/passives/LightningResistNode.png",
+          "tag": "affliction_lightning_resistance",
+          "stats": [
+            "+15% to Lightning Resistance"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: +15% to Lightning Resistance"
+          ]
+        },
+        "affliction_chaos_resistance": {
+          "name": "Chaos Resistance",
+          "icon": "Art/2DArt/SkillIcons/passives/ChaosResistNode.png",
+          "tag": "affliction_chaos_resistance",
+          "stats": [
+            "+12% to Chaos Resistance"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: +12% to Chaos Resistance"
+          ]
+        },
+        "affliction_chance_to_dodge_attacks": {
+          "name": "Chance to Suppress Spell Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/DodgeAtksNode.png",
+          "tag": "affliction_chance_to_dodge_attacks",
+          "stats": [
+            "+4% chance to Suppress Spell Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: +4% chance to Suppress Spell Damage"
+          ]
+        },
+        "affliction_strength": {
+          "name": "Strength",
+          "icon": "Art/2DArt/SkillIcons/passives/plusstrength.png",
+          "tag": "affliction_strength",
+          "stats": [
+            "+10 to Strength"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: +10 to Strength"
+          ]
+        },
+        "affliction_dexterity": {
+          "name": "Dexterity",
+          "icon": "Art/2DArt/SkillIcons/passives/plusdexterity.png",
+          "tag": "affliction_dexterity",
+          "stats": [
+            "+10 to Dexterity"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: +10 to Dexterity"
+          ]
+        },
+        "affliction_intelligence": {
+          "name": "Intelligence",
+          "icon": "Art/2DArt/SkillIcons/passives/plusintelligence.png",
+          "tag": "affliction_intelligence",
+          "stats": [
+            "+10 to Intelligence"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: +10 to Intelligence"
+          ]
+        },
+        "affliction_reservation_efficiency_small": {
+          "name": "Reservation Efficiency",
+          "icon": "Art/2DArt/SkillIcons/passives/AuraEffectNode.png",
+          "tag": "affliction_reservation_efficiency_small",
+          "stats": [
+            "6% increased Mana Reservation Efficiency of Skills"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 6% increased Mana Reservation Efficiency of Skills"
+          ]
+        },
+        "affliction_curse_effect_small": {
+          "name": "Curse Effect",
+          "icon": "Art/2DArt/SkillIcons/passives/CurseEffectNode.png",
+          "tag": "affliction_curse_effect_small",
+          "stats": [
+            "2% increased Effect of your Curses"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 2% increased Effect of your Curses"
+          ]
+        }
+      }
+    },
+    "Medium Cluster Jewel": {
+      "size": "Medium",
+      "sizeIndex": 1,
+      "minNodes": 4,
+      "maxNodes": 6,
+      "smallIndicies": [
+        0,
+        6,
+        8,
+        4,
+        10,
+        2
+      ],
+      "notableIndicies": [
+        6,
+        10,
+        2,
+        0
+      ],
+      "socketIndicies": [
+        6
+      ],
+      "totalIndicies": 12,
+      "skills": {
+        "affliction_fire_damage_over_time_multiplier": {
+          "name": "Fire Damage over Time",
+          "icon": "Art/2DArt/SkillIcons/passives/FireDamageOverTimeNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltFireDamageMastery.png",
+          "tag": "affliction_fire_damage_over_time_multiplier",
+          "stats": [
+            "12% increased Burning Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Burning Damage"
+          ]
+        },
+        "affliction_chaos_damage_over_time_multiplier": {
+          "name": "Chaos Damage over Time",
+          "icon": "Art/2DArt/SkillIcons/passives/ChaosDamageOverTimeNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltChaosDamageMastery.png",
+          "tag": "affliction_chaos_damage_over_time_multiplier",
+          "stats": [
+            "12% increased Chaos Damage over Time"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Chaos Damage over Time"
+          ]
+        },
+        "affliction_physical_damage_over_time_multiplier": {
+          "name": "Physical Damage over Time",
+          "icon": "Art/2DArt/SkillIcons/passives/PhysicalDamageOverTimeNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltBloodMastery.png",
+          "tag": "affliction_physical_damage_over_time_multiplier",
+          "stats": [
+            "12% increased Physical Damage over Time"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Physical Damage over Time"
+          ]
+        },
+        "affliction_cold_damage_over_time_multiplier": {
+          "name": "Cold Damage over Time",
+          "icon": "Art/2DArt/SkillIcons/passives/ColdDamageOverTimeNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltColdDamageMastery.png",
+          "tag": "affliction_cold_damage_over_time_multiplier",
+          "stats": [
+            "12% increased Cold Damage over Time"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Cold Damage over Time"
+          ]
+        },
+        "affliction_damage_over_time_multiplier": {
+          "name": "Damage over Time",
+          "icon": "Art/2DArt/SkillIcons/passives/DamageOverTimeNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltDamageOverTimeMultiplierMastery.png",
+          "tag": "affliction_damage_over_time_multiplier",
+          "stats": [
+            "10% increased Damage over Time"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 10% increased Damage over Time"
+          ]
+        },
+        "affliction_effect_of_non-damaging_ailments": {
+          "name": "Effect of Non-Damaging Ailments",
+          "icon": "Art/2DArt/SkillIcons/passives/IncreasedNonDamageAilmentNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltNonDamagingAilmentsMastery.png",
+          "tag": "affliction_effect_of_non-damaging_ailments",
+          "stats": [
+            "10% increased Effect of Non-Damaging Ailments"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 10% increased Effect of Non-Damaging Ailments"
+          ]
+        },
+        "affliction_aura_effect": {
+          "name": "Aura Effect (Legacy)",
+          "icon": "Art/2DArt/SkillIcons/passives/AuraEffectNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryAuras.png",
+          "tag": "old_do_not_use_affliction_aura_effect",
+          "stats": [
+            "3% increased effect of Non-Curse Auras from your Skills"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 3% increased effect of Non-Curse Auras from your Skills"
+          ]
+        },
+        "affliction_curse_effect": {
+          "name": "Curse Effect (Legacy)",
+          "icon": "Art/2DArt/SkillIcons/passives/CurseEffectNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryCurse.png",
+          "tag": "old_do_not_use_affliction_curse_effect",
+          "stats": [
+            "2% increased Effect of your Curses"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 2% increased Effect of your Curses"
+          ]
+        },
+        "affliction_damage_while_you_have_a_herald": {
+          "name": "Damage while you have a Herald",
+          "icon": "Art/2DArt/SkillIcons/passives/DmgHeraldSkillsNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltDamageWithHeraldMastery.png",
+          "tag": "affliction_damage_while_you_have_a_herald",
+          "stats": [
+            "10% increased Damage while affected by a Herald"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 10% increased Damage while affected by a Herald"
+          ]
+        },
+        "affliction_minion_damage_while_you_have_a_herald": {
+          "name": "Minion Damage while you have a Herald",
+          "icon": "Art/2DArt/SkillIcons/passives/MinionDmgHeraldSkillsNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMinionDamageHeraldMastery.png",
+          "tag": "affliction_minion_damage_while_you_have_a_herald",
+          "stats": [
+            "Minions deal 10% increased Damage while you are affected by a Herald"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: Minions deal 10% increased Damage while you are affected by a Herald"
+          ]
+        },
+        "affliction_warcry_buff_effect": {
+          "name": "Exerted Attack Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/IncreasedWarcryNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltWarcryMastery.png",
+          "tag": "affliction_warcry_buff_effect",
+          "stats": [
+            "Exerted Attacks deal 20% increased Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: Exerted Attacks deal 20% increased Damage"
+          ]
+        },
+        "affliction_critical_chance": {
+          "name": "Critical Chance",
+          "icon": "Art/2DArt/SkillIcons/passives/IncreaseCritChanceNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupCrit.png",
+          "tag": "affliction_critical_chance",
+          "stats": [
+            "15% increased Critical Strike Chance"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 15% increased Critical Strike Chance"
+          ]
+        },
+        "affliction_minion_life": {
+          "name": "Minion Life",
+          "icon": "Art/2DArt/SkillIcons/passives/IncreaseMinionLifeNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupMinions.png",
+          "tag": "affliction_minion_life",
+          "stats": [
+            "Minions have 12% increased maximum Life"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: Minions have 12% increased maximum Life"
+          ]
+        },
+        "affliction_area_damage": {
+          "name": "Area Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/AreaDmgNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltAreaDamageMastery.png",
+          "tag": "affliction_area_damage",
+          "stats": [
+            "10% increased Area Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 10% increased Area Damage"
+          ]
+        },
+        "affliction_projectile_damage": {
+          "name": "Projectile Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/ProjectileDmgNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryProjectiles.png",
+          "tag": "affliction_projectile_damage",
+          "stats": [
+            "10% increased Projectile Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 10% increased Projectile Damage"
+          ]
+        },
+        "affliction_trap_and_mine_damage": {
+          "name": "Trap and Mine Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/TrapAndMineDmgNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryTraps.png",
+          "tag": "affliction_trap_and_mine_damage",
+          "stats": [
+            "12% increased Trap Damage",
+            "12% increased Mine Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Trap Damage",
+            "Added Small Passive Skills grant: 12% increased Mine Damage"
+          ]
+        },
+        "affliction_totem_damage": {
+          "name": "Totem Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/TotemDmgNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryTotem.png",
+          "tag": "affliction_totem_damage",
+          "stats": [
+            "12% increased Totem Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Totem Damage"
+          ]
+        },
+        "affliction_brand_damage": {
+          "name": "Brand Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/BrandDmgNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryBrand.png",
+          "tag": "affliction_brand_damage",
+          "stats": [
+            "12% increased Brand Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Brand Damage"
+          ]
+        },
+        "affliction_channelling_skill_damage": {
+          "name": "Channelling Skill Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/DmgWhenChannelSkillsNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryChannelling.png",
+          "tag": "affliction_channelling_skill_damage",
+          "stats": [
+            "Channelling Skills deal 12% increased Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: Channelling Skills deal 12% increased Damage"
+          ]
+        },
+        "affliction_flask_duration": {
+          "name": "Flask Duration",
+          "icon": "Art/2DArt/SkillIcons/passives/FlaskDurationnode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryFlasks.png",
+          "tag": "affliction_flask_duration",
+          "stats": [
+            "6% increased Flask Effect Duration"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 6% increased Flask Effect Duration"
+          ]
+        },
+        "affliction_life_and_mana_recovery_from_flasks": {
+          "name": "Life and Mana recovery from Flasks",
+          "icon": "Art/2DArt/SkillIcons/passives/LifeManaFlasksrecoverynode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryFlasks.png",
+          "tag": "affliction_life_and_mana_recovery_from_flasks",
+          "stats": [
+            "10% increased Life Recovery from Flasks",
+            "10% increased Mana Recovery from Flasks"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 10% increased Life Recovery from Flasks",
+            "Added Small Passive Skills grant: 10% increased Mana Recovery from Flasks"
+          ]
+        }
+      }
+    },
+    "Large Cluster Jewel": {
+      "size": "Large",
+      "sizeIndex": 2,
+      "minNodes": 8,
+      "maxNodes": 12,
+      "smallIndicies": [
+        0,
+        4,
+        6,
+        8,
+        10,
+        2,
+        7,
+        5,
+        9,
+        3,
+        11,
+        1
+      ],
+      "notableIndicies": [
+        6,
+        4,
+        8,
+        10,
+        2
+      ],
+      "socketIndicies": [
+        4,
+        8,
+        6
+      ],
+      "totalIndicies": 12,
+      "skills": {
+        "affliction_axe_and_sword_damage": {
+          "name": "Axe and Sword Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/NodeAxeandSwordDamage.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupSwordAndAxe.png",
+          "tag": "affliction_axe_and_sword_damage",
+          "stats": [
+            "Axe Attacks deal 12% increased Damage with Hits and Ailments",
+            "Sword Attacks deal 12% increased Damage with Hits and Ailments"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: Axe Attacks deal 12% increased Damage with Hits and Ailments",
+            "Added Small Passive Skills grant: Sword Attacks deal 12% increased Damage with Hits and Ailments"
+          ]
+        },
+        "affliction_mace_and_staff_damage": {
+          "name": "Mace and Staff Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/NodeMaceandStaffDamage.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupMaceAndStaff.png",
+          "tag": "affliction_mace_and_staff_damage",
+          "stats": [
+            "Staff Attacks deal 12% increased Damage with Hits and Ailments",
+            "Mace or Sceptre Attacks deal 12% increased Damage with Hits and Ailments"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: Staff Attacks deal 12% increased Damage with Hits and Ailments",
+            "Added Small Passive Skills grant: Mace or Sceptre Attacks deal 12% increased Damage with Hits and Ailments"
+          ]
+        },
+        "affliction_dagger_and_claw_damage": {
+          "name": "Dagger and Claw Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/NodeDaggerandClawDamage.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltDaggerClawDamageMastery.png",
+          "tag": "affliction_dagger_and_claw_damage",
+          "stats": [
+            "Claw Attacks deal 12% increased Damage with Hits and Ailments",
+            "Dagger Attacks deal 12% increased Damage with Hits and Ailments"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: Claw Attacks deal 12% increased Damage with Hits and Ailments",
+            "Added Small Passive Skills grant: Dagger Attacks deal 12% increased Damage with Hits and Ailments"
+          ]
+        },
+        "affliction_bow_damage": {
+          "name": "Bow Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/NodeBowDamage.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupBow.png",
+          "tag": "affliction_bow_damage",
+          "stats": [
+            "12% increased Damage with Bows",
+            "12% increased Damage Over Time with Bow Skills"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Damage with Bows",
+            "Added Small Passive Skills grant: 12% increased Damage Over Time with Bow Skills"
+          ]
+        },
+        "affliction_wand_damage": {
+          "name": "Wand Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/NodeWandDamage.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupWand.png",
+          "tag": "affliction_wand_damage",
+          "stats": [
+            "Wand Attacks deal 12% increased Damage with Hits and Ailments"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: Wand Attacks deal 12% increased Damage with Hits and Ailments"
+          ]
+        },
+        "affliction_damage_with_two_handed_melee_weapons": {
+          "name": "Damage with Two Handed Weapons",
+          "icon": "Art/2DArt/SkillIcons/passives/NodeTwoHandedMeleeDamage.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupTwoHands.png",
+          "tag": "affliction_damage_with_two_handed_melee_weapons",
+          "stats": [
+            "12% increased Damage with Two Handed Weapons"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Damage with Two Handed Weapons"
+          ]
+        },
+        "affliction_attack_damage_while_dual_wielding_": {
+          "name": "Attack Damage while Dual Wielding",
+          "icon": "Art/2DArt/SkillIcons/passives/NodeDualWieldingDamage.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupDualWield.png",
+          "tag": "affliction_attack_damage_while_dual_wielding_",
+          "stats": [
+            "12% increased Attack Damage while Dual Wielding"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Attack Damage while Dual Wielding"
+          ]
+        },
+        "affliction_attack_damage_while_holding_a_shield": {
+          "name": "Attack Damage while holding a Shield",
+          "icon": "Art/2DArt/SkillIcons/passives/NodeHoldingShieldDamage.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupShield.png",
+          "tag": "affliction_attack_damage_while_holding_a_shield",
+          "stats": [
+            "12% increased Attack Damage while holding a Shield"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Attack Damage while holding a Shield"
+          ]
+        },
+        "affliction_attack_damage_": {
+          "name": "Attack Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/IncreasedAttackDamageNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltAttackDamageMastery.png",
+          "tag": "affliction_attack_damage_",
+          "stats": [
+            "10% increased Attack Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 10% increased Attack Damage"
+          ]
+        },
+        "affliction_spell_damage": {
+          "name": "Spell Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/IncreasedSpellDamageNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupCast.png",
+          "tag": "affliction_spell_damage",
+          "stats": [
+            "10% increased Spell Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 10% increased Spell Damage"
+          ]
+        },
+        "affliction_elemental_damage": {
+          "name": "Elemental Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/ElementalDamagenode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryElementalDamage.png",
+          "tag": "affliction_elemental_damage",
+          "stats": [
+            "10% increased Elemental Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 10% increased Elemental Damage"
+          ]
+        },
+        "affliction_physical_damage": {
+          "name": "Physical Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/PhysicalDamagenode2.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryPhysicalDamage.png",
+          "tag": "affliction_physical_damage",
+          "stats": [
+            "12% increased Physical Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Physical Damage"
+          ]
+        },
+        "affliction_fire_damage": {
+          "name": "Fire Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/FireDamagenode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupFire.png",
+          "tag": "affliction_fire_damage",
+          "stats": [
+            "12% increased Fire Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Fire Damage"
+          ]
+        },
+        "affliction_lightning_damage": {
+          "name": "Lightning Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/LightningDamagenode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupLightning.png",
+          "tag": "affliction_lightning_damage",
+          "stats": [
+            "12% increased Lightning Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Lightning Damage"
+          ]
+        },
+        "affliction_cold_damage": {
+          "name": "Cold Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/ColdDamagenode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupCold.png",
+          "tag": "affliction_cold_damage",
+          "stats": [
+            "12% increased Cold Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Cold Damage"
+          ]
+        },
+        "affliction_chaos_damage": {
+          "name": "Chaos Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/ChaosDamagenode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryChaos.png",
+          "tag": "affliction_chaos_damage",
+          "stats": [
+            "12% increased Chaos Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: 12% increased Chaos Damage"
+          ]
+        },
+        "affliction_minion_damage": {
+          "name": "Minion Damage",
+          "icon": "Art/2DArt/SkillIcons/passives/IncreasedMinionDamageNode.png",
+          "masteryIcon": "Art/2DArt/SkillIcons/passives/AltMasteryGroupMinions.png",
+          "tag": "affliction_minion_damage",
+          "stats": [
+            "Minions deal 10% increased Damage"
+          ],
+          "enchant": [
+            "Added Small Passive Skills grant: Minions deal 10% increased Damage"
+          ]
+        }
+      }
+    }
+  },
+  "notableSortOrder": {
+    "Prodigious Defence": 11172,
+    "Advance Guard": 11173,
+    "Gladiatorial Combat": 11174,
+    "Strike Leader": 11175,
+    "Powerful Ward": 11176,
+    "Enduring Ward": 11177,
+    "Gladiator's Fortitude": 11178,
+    "Precise Retaliation": 11179,
+    "Veteran Defender": 11180,
+    "Iron Breaker": 11181,
+    "Deep Cuts": 11182,
+    "Master the Fundamentals": 11183,
+    "Force Multiplier": 11184,
+    "Furious Assault": 11185,
+    "Vicious Skewering": 11186,
+    "Grim Oath": 11187,
+    "Battle-Hardened": 11188,
+    "Replenishing Presence": 11189,
+    "Master of Command": 11190,
+    "Spiteful Presence": 11191,
+    "Purposeful Harbinger": 11192,
+    "Destructive Aspect": 11193,
+    "Electric Presence": 11194,
+    "Volatile Presence": 11195,
+    "Righteous Path": 11196,
+    "Skullbreaker": 11197,
+    "Pressure Points": 11198,
+    "Overwhelming Malice": 11199,
+    "Magnifier": 11200,
+    "Savage Response": 11201,
+    "Eye of the Storm": 11202,
+    "Basics of Pain": 11203,
+    "Quick Getaway": 11204,
+    "Assert Dominance": 11205,
+    "Vast Power": 11206,
+    "Powerful Assault": 11207,
+    "Intensity": 11208,
+    "Titanic Swings": 11209,
+    "Towering Threat": 11210,
+    "Ancestral Echo": 11211,
+    "Ancestral Reach": 11212,
+    "Ancestral Might": 11213,
+    "Ancestral Preservation": 11214,
+    "Snaring Spirits": 11215,
+    "Sleepless Sentries": 11216,
+    "Ancestral Guidance": 11217,
+    "Ancestral Inspiration": 11218,
+    "Vital Focus": 11219,
+    "Unrestrained Focus": 11220,
+    "Unwavering Focus": 11221,
+    "Enduring Focus": 11222,
+    "Precise Focus": 11223,
+    "Stoic Focus": 11224,
+    "Hex Breaker": 11225,
+    "Arcane Adept": 11226,
+    "Distilled Perfection": 11227,
+    "Spiked Concoction": 11228,
+    "Fasting": 11229,
+    "Mender's Wellspring": 11230,
+    "Special Reserve": 11231,
+    "Numbing Elixir": 11232,
+    "Mob Mentality": 11233,
+    "Cry Wolf": 11234,
+    "Haunting Shout": 11235,
+    "Lead By Example": 11236,
+    "Provocateur": 11237,
+    "Warning Call": 11238,
+    "Rattling Bellow": 11239,
+    "Bloodscent": 11240,
+    "Run Through": 11241,
+    "Wound Aggravation": 11242,
+    "Overlord": 11243,
+    "Expansive Might": 11244,
+    "Weight Advantage": 11245,
+    "Wind-up": 11246,
+    "Fan of Blades": 11247,
+    "Disease Vector": 11248,
+    "Arcing Shot": 11249,
+    "Tempered Arrowheads": 11250,
+    "Broadside": 11251,
+    "Explosive Force": 11252,
+    "Opportunistic Fusilade": 11253,
+    "Storm's Hand": 11254,
+    "Battlefield Dominator": 11255,
+    "Martial Mastery": 11256,
+    "Surefooted Striker": 11257,
+    "Graceful Execution": 11258,
+    "Brutal Infamy": 11259,
+    "Fearsome Warrior": 11260,
+    "Combat Rhythm": 11261,
+    "Hit and Run": 11262,
+    "Insatiable Killer": 11263,
+    "Mage Bane": 11264,
+    "Martial Momentum": 11265,
+    "Deadly Repartee": 11266,
+    "Quick and Deadly": 11267,
+    "Smite the Weak": 11268,
+    "Heavy Hitter": 11269,
+    "Martial Prowess": 11270,
+    "Calamitous": 11271,
+    "Devastator": 11272,
+    "Fuel the Fight": 11273,
+    "Drive the Destruction": 11274,
+    "Feed the Fury": 11275,
+    "Seal Mender": 11276,
+    "Conjured Wall": 11277,
+    "Arcane Heroism": 11278,
+    "Practiced Caster": 11279,
+    "Burden Projection": 11280,
+    "Thaumophage": 11281,
+    "Essence Rush": 11282,
+    "Sap Psyche": 11283,
+    "Sadist": 11284,
+    "Corrosive Elements": 11285,
+    "Doryani's Lesson": 11286,
+    "Disorienting Display": 11287,
+    "Prismatic Heart": 11288,
+    "Widespread Destruction": 11289,
+    "Master of Fire": 11290,
+    "Smoking Remains": 11291,
+    "Cremator": 11292,
+    "Snowstorm": 11293,
+    "Storm Drinker": 11294,
+    "Paralysis": 11295,
+    "Supercharge": 11296,
+    "Blanketed Snow": 11297,
+    "Cold to the Core": 11298,
+    "Cold-Blooded Killer": 11299,
+    "Touch of Cruelty": 11300,
+    "Unwaveringly Evil": 11301,
+    "Unspeakable Gifts": 11302,
+    "Dark Ideation": 11303,
+    "Unholy Grace": 11304,
+    "Wicked Pall": 11305,
+    "Renewal": 11306,
+    "Raze and Pillage": 11307,
+    "Rotten Claws": 11308,
+    "Call to the Slaughter": 11309,
+    "Skeletal Atrophy": 11602,
+    "Hulking Corpses": 11310,
+    "Vicious Bite": 11311,
+    "Primordial Bond": 11312,
+    "Blowback": 11313,
+    "Fan the Flames": 11314,
+    "Cooked Alive": 11315,
+    "Burning Bright": 11316,
+    "Wrapped in Flame": 11317,
+    "Vivid Hues": 11318,
+    "Rend": 11319,
+    "Disorienting Wounds": 11320,
+    "Compound Injury": 11321,
+    "Blood Artist": 13996,
+    "Phlebotomist": 13997,
+    "Septic Spells": 11322,
+    "Low Tolerance": 11323,
+    "Steady Torment": 11324,
+    "Eternal Suffering": 11325,
+    "Eldritch Inspiration": 11326,
+    "Wasting Affliction": 11327,
+    "Haemorrhage": 11328,
+    "Flow of Life": 11329,
+    "Exposure Therapy": 11330,
+    "Brush with Death": 11331,
+    "Vile Reinvigoration": 11332,
+    "Circling Oblivion": 11333,
+    "Brewed for Potency": 11334,
+    "Astonishing Affliction": 11335,
+    "Cold Conduction": 11336,
+    "Inspired Oppression": 11337,
+    "Chilling Presence": 11338,
+    "Deep Chill": 11339,
+    "Blast-Freeze": 11340,
+    "Thunderstruck": 11341,
+    "Stormrider": 11342,
+    "Overshock": 11343,
+    "Evil Eye": 11345,
+    "Forbidden Words": 11346,
+    "Doedre's Spite": 11347,
+    "Victim Maker": 11348,
+    "Master of Fear": 11349,
+    "Wish for Death": 11350,
+    "Heraldry": 11351,
+    "Endbringer": 11352,
+    "Cult-Leader": 11353,
+    "Empowered Envoy": 11354,
+    "Dark Messenger": 11355,
+    "Agent of Destruction": 11356,
+    "Lasting Impression": 11357,
+    "Self-Fulfilling Prophecy": 11358,
+    "Invigorating Portents": 11359,
+    "Pure Agony": 11360,
+    "Disciples": 11361,
+    "Dread March": 11362,
+    "Blessed Rebirth": 11363,
+    "Life from Death": 11364,
+    "Feasting Fiends": 11365,
+    "Bodyguards": 11366,
+    "Follow-Through": 11367,
+    "Streamlined": 11368,
+    "Shrieking Bolts": 11369,
+    "Eye to Eye": 11370,
+    "Repeater": 11371,
+    "Aerodynamics": 11372,
+    "Chip Away": 11373,
+    "Seeker Runes": 11374,
+    "Remarkable": 11375,
+    "Brand Loyalty": 11376,
+    "Holy Conquest": 11377,
+    "Grand Design": 11378,
+    "Set and Forget": 11379,
+    "Expert Sabotage": 11380,
+    "Guerilla Tactics": 11381,
+    "Expendability": 11382,
+    "Arcane Pyrotechnics": 11383,
+    "Surprise Sabotage": 11384,
+    "Careful Handling": 11385,
+    "Peak Vigour": 11386,
+    "Fettle": 11387,
+    "Feast of Flesh": 11388,
+    "Sublime Sensation": 11389,
+    "Surging Vitality": 11390,
+    "Peace Amidst Chaos": 11391,
+    "Adrenaline": 11392,
+    "Wall of Muscle": 11393,
+    "Mindfulness": 11394,
+    "Liquid Inspiration": 11395,
+    "Openness": 11396,
+    "Daring Ideas": 11397,
+    "Clarity of Purpose": 11398,
+    "Scintillating Idea": 11399,
+    "Holistic Health": 11400,
+    "Genius": 11401,
+    "Improvisor": 11402,
+    "Stubborn Student": 11403,
+    "Savour the Moment": 11404,
+    "Energy From Naught": 11405,
+    "Will Shaper": 11406,
+    "Spring Back": 11407,
+    "Conservation of Energy": 11408,
+    "Heart of Iron": 11409,
+    "Prismatic Carapace": 11410,
+    "Militarism": 11411,
+    "Second Skin": 11412,
+    "Dragon Hunter": 11413,
+    "Enduring Composure": 11414,
+    "Prismatic Dance": 11415,
+    "Natural Vigour": 11416,
+    "Untouchable": 11417,
+    "Shifting Shadow": 11418,
+    "Readiness": 11419,
+    "Confident Combatant": 11420,
+    "Flexible Sentry": 11421,
+    "Vicious Guard": 11422,
+    "Mystical Ward": 11423,
+    "Rote Reinforcement": 11424,
+    "Mage Hunter": 11425,
+    "Riot Queller": 11426,
+    "One with the Shield": 11427,
+    "Aerialist": 11428,
+    "Elegant Form": 11429,
+    "Darting Movements": 11430,
+    "No Witnesses": 11431,
+    "Molten One's Mark": 11432,
+    "Fire Attunement": 11433,
+    "Pure Might": 11434,
+    "Blacksmith": 11435,
+    "Non-Flammable": 11436,
+    "Winter Prowler": 11437,
+    "Hibernator": 11438,
+    "Pure Guile": 11439,
+    "Alchemist": 11440,
+    "Antifreeze": 11441,
+    "Wizardry": 11442,
+    "Capacitor": 11443,
+    "Pure Aptitude": 11444,
+    "Sage": 11445,
+    "Insulated": 11446,
+    "Born of Chaos": 11447,
+    "Antivenom": 11448,
+    "Rot-Resistant": 11449,
+    "Blessed": 11450,
+    "Student of Decay": 11451,
+    "Lord of Drought": 12297,
+    "Blizzard Caller": 12298,
+    "Tempt the Storm": 12299,
+    "Misery Everlasting": 12300,
+    "Exploit Weakness": 12301,
+    "Self-Control": 12306,
+    "Uncompromising": 12307,
+    "Sublime Form": 12308,
+    "Mortifying Aspect": 12364,
+    "Frantic Aspect": 12365,
+    "Introspection": 12366,
+    "Hound's Mark": 12302,
+    "Doedre's Gluttony": 12303,
+    "Doedre's Apathy": 12304,
+    "Master of the Maelstrom": 12305,
+    "Aggressive Defence": 15460
+  },
+  "keystones": [
+    "Disciple of Kitava",
+    "Lone Messenger",
+    "Nature's Patience",
+    "Secrets of Suffering",
+    "Kineticism",
+    "Veteran's Awareness",
+    "Hollow Palm Technique",
+    "Pitfighter"
+  ],
+  "orbitOffsets": {
+    "3854": [
+      0
+    ],
+    "7956": [
+      3
+    ],
+    "10643": [
+      4
+    ],
+    "13201": [
+      3,
+      7
+    ],
+    "18361": [
+      2
+    ],
+    "18756": [
+      4,
+      7,
+      7
+    ],
+    "22046": [
+      2
+    ],
+    "24452": [
+      5,
+      9
+    ],
+    "25134": [
+      0,
+      11,
+      11
+    ],
+    "25441": [
+      1,
+      1
+    ],
+    "26661": [
+      3,
+      5
+    ],
+    "27475": [
+      0
+    ],
+    "27819": [
+      4
+    ],
+    "28018": [
+      2,
+      3
+    ],
+    "28650": [
+      1,
+      1,
+      1
+    ],
+    "30275": [
+      2,
+      3,
+      3
+    ],
+    "33833": [
+      5,
+      9
+    ],
+    "34013": [
+      4,
+      7
+    ],
+    "35070": [
+      1
+    ],
+    "35313": [
+      4
+    ],
+    "35853": [
+      0,
+      1
+    ],
+    "35926": [
+      4,
+      7
+    ],
+    "36414": [
+      3
+    ],
+    "37147": [
+      0
+    ],
+    "37898": [
+      5,
+      11
+    ],
+    "40114": [
+      1
+    ],
+    "43989": [
+      3,
+      5,
+      5
+    ],
+    "44470": [
+      5
+    ],
+    "48128": [
+      5
+    ],
+    "48132": [
+      5,
+      9,
+      9
+    ],
+    "49951": [
+      1
+    ],
+    "50179": [
+      5,
+      11
+    ],
+    "51233": [
+      5,
+      9
+    ],
+    "53203": [
+      3,
+      5
+    ],
+    "54600": [
+      3
+    ],
+    "55706": [
+      2,
+      3
+    ],
+    "56439": [
+      5
+    ],
+    "57194": [
+      5,
+      11
+    ],
+    "58194": [
+      3,
+      5
+    ],
+    "58355": [
+      2,
+      3
+    ],
+    "63754": [
+      2
+    ],
+    "64166": [
+      1,
+      1
+    ]
+  }
+}
