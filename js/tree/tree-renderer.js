@@ -1,5 +1,5 @@
 // PoBWeb - WebGL2 Passive Tree Renderer
-// Instanced rendering for nodes and connections with texture atlas.
+// Instanced rendering for nodes and connections with sprite atlas support.
 
 // Inline shader sources (bundler-friendly)
 const NODE_VERT = `#version 300 es
@@ -60,15 +60,15 @@ void main() {
 // Node state colors
 export const NODE_COLORS = {
   unallocated: [0.5, 0.5, 0.5, 1.0],
-  allocated: [1.0, 0.84, 0.0, 1.0],     // gold
-  canAllocate: [0.3, 0.8, 0.3, 1.0],     // green hint
+  allocated: [1.0, 0.84, 0.0, 1.0],
+  canAllocate: [0.3, 0.8, 0.3, 1.0],
   highlighted: [1.0, 1.0, 1.0, 1.0],
 };
 
 export const CONNECTION_COLORS = {
   inactive: [0.3, 0.3, 0.3, 0.6],
-  active: [0.85, 0.7, 0.2, 1.0],         // gold
-  path: [0.3, 0.8, 0.3, 0.8],            // green preview
+  active: [0.85, 0.7, 0.2, 1.0],
+  path: [0.3, 0.8, 0.3, 0.8],
 };
 
 export class TreeRenderer {
@@ -79,27 +79,21 @@ export class TreeRenderer {
 
     this.nodeProgram = null;
     this.connProgram = null;
-    this.atlasTexture = null;
-    this.nodeVAO = null;
     this.connVAO = null;
 
     // Camera
     this.camera = { x: 0, y: 0, zoom: 1, width: canvas.width, height: canvas.height };
 
-    // Instance data
-    this.nodeInstances = null;
-    this.nodeInstanceCount = 0;
-    this.connInstances = null;
+    // Connection data
     this.connInstanceCount = 0;
 
-    // Overlay layer (path preview, jewel radius, search highlights)
-    this.overlayNodeInstances = null;
-    this.overlayNodeCount = 0;
-    this.overlayConnInstances = null;
-    this.overlayConnCount = 0;
+    // Node layers: array of { texture, vao, instanceBuffer, instanceCount }
+    this.nodeLayers = [];
+
+    // Texture cache: url -> WebGLTexture
+    this._textures = new Map();
 
     this.dirty = true;
-
     this._initGL();
   }
 
@@ -107,12 +101,11 @@ export class TreeRenderer {
     const gl = this.gl;
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.clearColor(0.08, 0.08, 0.12, 1.0);
+    gl.clearColor(0.04, 0.04, 0.06, 1.0);
 
     this.nodeProgram = this._createProgram(NODE_VERT, NODE_FRAG);
     this.connProgram = this._createProgram(CONN_VERT, CONN_FRAG);
 
-    this._setupNodeVAO();
     this._setupConnVAO();
   }
 
@@ -143,14 +136,35 @@ export class TreeRenderer {
     return program;
   }
 
-  _setupNodeVAO() {
+  _setupConnVAO() {
     const gl = this.gl;
-    this.nodeVAO = gl.createVertexArray();
-    gl.bindVertexArray(this.nodeVAO);
+    this.connVAO = gl.createVertexArray();
+    gl.bindVertexArray(this.connVAO);
 
-    // Quad vertices: position + texcoord (shared by all instances)
+    const lineQuad = new Float32Array([
+      0, -0.5, 1, -0.5, 1, 0.5,
+      0, -0.5, 1, 0.5, 0, 0.5,
+    ]);
+    const vertBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, lineQuad, gl.STATIC_DRAW);
+
+    // a_vertex (location 4)
+    gl.enableVertexAttribArray(4);
+    gl.vertexAttribPointer(4, 2, gl.FLOAT, false, 8, 0);
+
+    this.connInstanceBuffer = gl.createBuffer();
+    gl.bindVertexArray(null);
+  }
+
+  // Create a node layer VAO (returns { vao, instanceBuffer })
+  _createNodeLayerVAO() {
+    const gl = this.gl;
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+
+    // Shared quad geometry
     const quadData = new Float32Array([
-      // pos.x, pos.y, uv.x, uv.y
       -0.5, -0.5, 0, 0,
        0.5, -0.5, 1, 0,
        0.5,  0.5, 1, 1,
@@ -162,82 +176,20 @@ export class TreeRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
     gl.bufferData(gl.ARRAY_BUFFER, quadData, gl.STATIC_DRAW);
 
-    // a_position (location 0)
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 16, 0);
-    // a_texCoord (location 1)
     gl.enableVertexAttribArray(1);
     gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 16, 8);
 
-    // Instance buffer (created later when data is set)
-    this.nodeInstanceBuffer = gl.createBuffer();
-
+    const instanceBuffer = gl.createBuffer();
     gl.bindVertexArray(null);
+
+    return { vao, instanceBuffer };
   }
 
-  _setupConnVAO() {
+  // Upload instance data to a node layer VAO
+  _uploadNodeInstances(vao, instanceBuffer, instances) {
     const gl = this.gl;
-    this.connVAO = gl.createVertexArray();
-    gl.bindVertexArray(this.connVAO);
-
-    // Quad vertices for line segment
-    const lineQuad = new Float32Array([
-      0, -0.5,
-      1, -0.5,
-      1,  0.5,
-      0, -0.5,
-      1,  0.5,
-      0,  0.5,
-    ]);
-    const vertBuf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, lineQuad, gl.STATIC_DRAW);
-
-    // a_vertex (location 4)
-    gl.enableVertexAttribArray(4);
-    gl.vertexAttribPointer(4, 2, gl.FLOAT, false, 8, 0);
-
-    // Instance buffer
-    this.connInstanceBuffer = gl.createBuffer();
-
-    gl.bindVertexArray(null);
-  }
-
-  // Load atlas from image URL
-  async loadAtlas(imageUrl) {
-    const gl = this.gl;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-      img.src = imageUrl;
-    });
-
-    this.atlasTexture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.atlasTexture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    this.dirty = true;
-  }
-
-  // Create a 1x1 white pixel atlas (fallback when no texture loaded)
-  createFallbackAtlas() {
-    const gl = this.gl;
-    this.atlasTexture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.atlasTexture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  }
-
-  // Set node instance data
-  // instances: array of { x, y, size, spriteRect: [u, v, w, h], color: [r, g, b, a] }
-  setNodeInstances(instances) {
-    const gl = this.gl;
-    // Per instance: offset(2) + size(1) + spriteRect(4) + color(4) = 11 floats
     const data = new Float32Array(instances.length * 11);
     for (let i = 0; i < instances.length; i++) {
       const inst = instances[i];
@@ -255,39 +207,105 @@ export class TreeRenderer {
       data[o + 10] = inst.color?.[3] ?? 1;
     }
 
-    gl.bindVertexArray(this.nodeVAO);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.nodeInstanceBuffer);
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
 
-    const stride = 44; // 11 floats * 4 bytes
-    // a_offset (location 2)
+    const stride = 44;
     gl.enableVertexAttribArray(2);
     gl.vertexAttribPointer(2, 2, gl.FLOAT, false, stride, 0);
     gl.vertexAttribDivisor(2, 1);
-    // a_size (location 3)
     gl.enableVertexAttribArray(3);
     gl.vertexAttribPointer(3, 1, gl.FLOAT, false, stride, 8);
     gl.vertexAttribDivisor(3, 1);
-    // a_spriteRect (location 4)
     gl.enableVertexAttribArray(4);
     gl.vertexAttribPointer(4, 4, gl.FLOAT, false, stride, 12);
     gl.vertexAttribDivisor(4, 1);
-    // a_color (location 5)
     gl.enableVertexAttribArray(5);
     gl.vertexAttribPointer(5, 4, gl.FLOAT, false, stride, 28);
     gl.vertexAttribDivisor(5, 1);
 
     gl.bindVertexArray(null);
+  }
 
-    this.nodeInstanceCount = instances.length;
+  // Load a texture from URL, returns a promise. Caches by URL.
+  async loadTexture(url) {
+    if (this._textures.has(url)) return this._textures.get(url);
+
+    const gl = this.gl;
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = url;
+    });
+
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.generateMipmap(gl.TEXTURE_2D);
+
+    this._textures.set(url, tex);
+    this.dirty = true;
+    return tex;
+  }
+
+  // Create a 1x1 white pixel texture (fallback)
+  createFallbackTexture() {
+    const gl = this.gl;
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    this._textures.set('__fallback__', tex);
+    return tex;
+  }
+
+  // Set node layers for rendering.
+  // layers: array of { textureUrl: string, instances: [{x,y,size,spriteRect,color}] }
+  setNodeLayers(layers) {
+    const gl = this.gl;
+
+    // Clean up old layers
+    for (const layer of this.nodeLayers) {
+      gl.deleteVertexArray(layer.vao);
+      gl.deleteBuffer(layer.instanceBuffer);
+    }
+    this.nodeLayers = [];
+
+    for (const layerDef of layers) {
+      if (!layerDef.instances.length) continue;
+      const { vao, instanceBuffer } = this._createNodeLayerVAO();
+      this._uploadNodeInstances(vao, instanceBuffer, layerDef.instances);
+
+      const texture = this._textures.get(layerDef.textureUrl) || this._textures.get('__fallback__');
+      this.nodeLayers.push({
+        vao,
+        instanceBuffer,
+        instanceCount: layerDef.instances.length,
+        texture,
+      });
+    }
+
     this.dirty = true;
   }
 
-  // Set connection instance data
-  // connections: array of { x1, y1, x2, y2, width, color: [r, g, b, a] }
+  // Legacy single-layer API (for tests)
+  setNodeInstances(instances) {
+    this.setNodeLayers([{ textureUrl: '__fallback__', instances }]);
+  }
+
+  createFallbackAtlas() {
+    this.createFallbackTexture();
+  }
+
   setConnectionInstances(connections) {
     const gl = this.gl;
-    // Per instance: start(2) + end(2) + width(1) + color(4) = 9 floats
     const data = new Float32Array(connections.length * 9);
     for (let i = 0; i < connections.length; i++) {
       const c = connections[i];
@@ -307,31 +325,25 @@ export class TreeRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.connInstanceBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
 
-    const stride = 36; // 9 floats * 4 bytes
-    // a_start (location 0)
+    const stride = 36;
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, stride, 0);
     gl.vertexAttribDivisor(0, 1);
-    // a_end (location 1)
     gl.enableVertexAttribArray(1);
     gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 8);
     gl.vertexAttribDivisor(1, 1);
-    // a_width (location 2)
     gl.enableVertexAttribArray(2);
     gl.vertexAttribPointer(2, 1, gl.FLOAT, false, stride, 16);
     gl.vertexAttribDivisor(2, 1);
-    // a_color (location 3)
     gl.enableVertexAttribArray(3);
     gl.vertexAttribPointer(3, 4, gl.FLOAT, false, stride, 20);
     gl.vertexAttribDivisor(3, 1);
 
     gl.bindVertexArray(null);
-
     this.connInstanceCount = connections.length;
     this.dirty = true;
   }
 
-  // Build orthographic view-projection matrix
   _buildViewProjection() {
     const { x, y, zoom, width, height } = this.camera;
     const hw = (width / 2) / zoom;
@@ -341,7 +353,6 @@ export class TreeRenderer {
     const bottom = y + hh;
     const top = y - hh;
 
-    // Column-major orthographic projection
     return new Float32Array([
       2 / (right - left), 0, 0, 0,
       0, 2 / (top - bottom), 0, 0,
@@ -375,9 +386,7 @@ export class TreeRenderer {
 
     const vp = this._buildViewProjection();
 
-    // Layer 1: Background (handled by clearColor for now)
-
-    // Layer 2: Connections
+    // Layer 1: Connections
     if (this.connInstanceCount > 0) {
       gl.useProgram(this.connProgram);
       gl.uniformMatrix4fv(gl.getUniformLocation(this.connProgram, 'u_viewProjection'), false, vp);
@@ -385,55 +394,31 @@ export class TreeRenderer {
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.connInstanceCount);
     }
 
-    // Layer 3: Nodes
-    if (this.nodeInstanceCount > 0 && this.atlasTexture) {
+    // Layer 2+: Node layers (frames, then icons, in order)
+    if (this.nodeLayers.length > 0) {
       gl.useProgram(this.nodeProgram);
       gl.uniformMatrix4fv(gl.getUniformLocation(this.nodeProgram, 'u_viewProjection'), false, vp);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.atlasTexture);
-      gl.uniform1i(gl.getUniformLocation(this.nodeProgram, 'u_atlas'), 0);
-      gl.bindVertexArray(this.nodeVAO);
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nodeInstanceCount);
-    }
+      const atlasLoc = gl.getUniformLocation(this.nodeProgram, 'u_atlas');
 
-    // Layer 4: Overlays (path preview, jewel radius, search highlights)
-    // Overlay connections and nodes are rendered on top with additive blending
-    // (Overlay data is applied by temporarily uploading to the same VAOs)
-    // For simplicity, overlays reuse the same shader programs
+      for (const layer of this.nodeLayers) {
+        if (!layer.texture || layer.instanceCount === 0) continue;
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, layer.texture);
+        gl.uniform1i(atlasLoc, 0);
+        gl.bindVertexArray(layer.vao);
+        gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, layer.instanceCount);
+      }
+    }
 
     gl.bindVertexArray(null);
   }
 
-  // Set overlay instances (path preview, search highlights)
-  setOverlayNodeInstances(instances) {
-    this.overlayNodeInstances = instances;
-    this.overlayNodeCount = instances.length;
-    this.dirty = true;
-  }
-
-  setOverlayConnectionInstances(connections) {
-    this.overlayConnInstances = connections;
-    this.overlayConnCount = connections.length;
-    this.dirty = true;
-  }
-
-  clearOverlays() {
-    this.overlayNodeInstances = null;
-    this.overlayNodeCount = 0;
-    this.overlayConnInstances = null;
-    this.overlayConnCount = 0;
-    this.dirty = true;
-  }
-
-  // Hit test: find node at screen coordinates
-  hitTest(screenX, screenY, nodeSize = 20) {
-    // Convert screen to world coordinates
+  hitTest(screenX, screenY) {
     const worldX = this.camera.x + (screenX - this.camera.width / 2) / this.camera.zoom;
     const worldY = this.camera.y + (screenY - this.camera.height / 2) / this.camera.zoom;
     return { x: worldX, y: worldY };
   }
 
-  // Convert screen coords to world coords
   screenToWorld(sx, sy) {
     return {
       x: this.camera.x + (sx - this.camera.width / 2) / this.camera.zoom,
@@ -445,13 +430,99 @@ export class TreeRenderer {
     const gl = this.gl;
     if (this.nodeProgram) gl.deleteProgram(this.nodeProgram);
     if (this.connProgram) gl.deleteProgram(this.connProgram);
-    if (this.atlasTexture) gl.deleteTexture(this.atlasTexture);
-    if (this.nodeVAO) gl.deleteVertexArray(this.nodeVAO);
     if (this.connVAO) gl.deleteVertexArray(this.connVAO);
+    for (const layer of this.nodeLayers) {
+      gl.deleteVertexArray(layer.vao);
+      gl.deleteBuffer(layer.instanceBuffer);
+    }
+    for (const tex of this._textures.values()) {
+      gl.deleteTexture(tex);
+    }
   }
 }
 
-// Utility: Build node instances from TreeData + PassiveSpec
+// Utility: Build node frame + icon layers from TreeData + SpriteData + PassiveSpec
+export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
+  const highlighted = options.highlighted;
+
+  // World-space sizes for each node type (matching the sprite pixel sizes roughly)
+  const frameSizes = { normal: 39, notable: 58, keystone: 83, jewel: 58, mastery: 86, classStart: 80, ascendancyStart: 50 };
+  const iconSizes = { normal: 26, notable: 37, keystone: 52, jewel: 0, mastery: 86, classStart: 0, ascendancyStart: 0 };
+
+  const frameInstances = [];
+  const unallocatedIcons = [];
+  const allocatedIcons = [];
+  const masteryIcons = [];
+
+  for (const node of Object.values(treeData.nodes)) {
+    const allocated = spec ? spec.isAllocated(node.id) : false;
+    const isHighlighted = highlighted?.has(node.id);
+
+    // Frame
+    const frameState = isHighlighted ? 'highlighted' : (allocated ? 'allocated' : 'unallocated');
+    const frameUV = spriteData.getFrameUV(node.type, frameState);
+    if (frameUV) {
+      frameInstances.push({
+        x: node.x,
+        y: node.y,
+        size: frameSizes[node.type] || 39,
+        spriteRect: frameUV,
+        color: [1, 1, 1, 1],
+      });
+    }
+
+    // Icon
+    if (node.type === 'mastery') {
+      // Mastery uses separate sprite sheets
+      const icon = node._inactiveIcon || node._icon;
+      if (icon) {
+        const uv = spriteData.getMasteryIconUV(icon, allocated);
+        if (uv) {
+          masteryIcons.push({
+            x: node.x,
+            y: node.y,
+            size: iconSizes.mastery,
+            spriteRect: uv,
+            color: [1, 1, 1, allocated ? 1 : 0.6],
+          });
+        }
+      }
+    } else if (node.type === 'classStart' || node.type === 'ascendancyStart' || node.type === 'jewel') {
+      // These types don't have skill icons in the skills sprite sheet
+      // For classStart, we could use group-background or startNode sprites
+      // For now, render frame only (which already distinguishes them)
+    } else {
+      const iconPath = node._icon;
+      if (iconPath) {
+        const iconUV = spriteData.getIconUV(node.type, iconPath, allocated);
+        if (iconUV) {
+          const target = allocated ? allocatedIcons : unallocatedIcons;
+          target.push({
+            x: node.x,
+            y: node.y,
+            size: iconSizes[node.type] || 26,
+            spriteRect: iconUV,
+            color: isHighlighted ? [1, 1, 0.5, 1] : [1, 1, 1, 1],
+          });
+        }
+      }
+    }
+  }
+
+  const layers = [
+    { textureUrl: 'assets/tree/frame-3.png', instances: frameInstances },
+    { textureUrl: 'assets/tree/skills-disabled-3.jpg', instances: unallocatedIcons },
+    { textureUrl: 'assets/tree/skills-3.jpg', instances: allocatedIcons },
+  ];
+
+  if (masteryIcons.length > 0) {
+    layers.push({ textureUrl: 'assets/tree/mastery-disabled-3.png', instances: masteryIcons });
+  }
+
+  return layers;
+}
+
+// Legacy utilities kept for backward compatibility
 export function buildNodeInstances(treeData, spec, options = {}) {
   const nodeSize = options.nodeSize || { normal: 20, notable: 30, keystone: 40, socket: 25, jewel: 25, classStart: 30, ascendancyStart: 25, mastery: 25 };
   const instances = [];
@@ -470,7 +541,7 @@ export function buildNodeInstances(treeData, spec, options = {}) {
       x: node.x,
       y: node.y,
       size: nodeSize[node.type] || 20,
-      spriteRect: [0, 0, 1, 1], // full atlas (placeholder)
+      spriteRect: [0, 0, 1, 1],
       color,
     });
   }
@@ -478,7 +549,6 @@ export function buildNodeInstances(treeData, spec, options = {}) {
   return instances;
 }
 
-// Utility: Build path preview instances (green connections for prospective allocation)
 export function buildPathPreviewInstances(treeData, pathNodeIds) {
   const connections = [];
   for (let i = 0; i < pathNodeIds.length - 1; i++) {
@@ -495,7 +565,6 @@ export function buildPathPreviewInstances(treeData, pathNodeIds) {
   return connections;
 }
 
-// Utility: Build connection instances from TreeData + PassiveSpec
 export function buildConnectionInstances(treeData, spec, options = {}) {
   const connections = [];
   const seen = new Set();
@@ -513,10 +582,8 @@ export function buildConnectionInstances(treeData, spec, options = {}) {
       const color = bothAllocated ? CONNECTION_COLORS.active : CONNECTION_COLORS.inactive;
 
       connections.push({
-        x1: node.x,
-        y1: node.y,
-        x2: adjNode.x,
-        y2: adjNode.y,
+        x1: node.x, y1: node.y,
+        x2: adjNode.x, y2: adjNode.y,
         width: bothAllocated ? 3 : 2,
         color,
       });

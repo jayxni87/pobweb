@@ -76,6 +76,9 @@ export class TreeData {
         orbitIndex: ndata.orbitIndex ?? 0,
         ascendancy: ndata.ascendancyName || ndata.ascendancy || null,
         classStartIndex: ndata.classStartIndex,
+        _icon: ndata.icon || null,
+        _inactiveIcon: ndata.inactiveIcon || null,
+        _activeIcon: ndata.activeIcon || null,
         x: 0,
         y: 0,
       };

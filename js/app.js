@@ -9,13 +9,15 @@ import { initModDB } from './engine/calc-setup.js';
 import { doActorAttribs, doActorLifeMana } from './engine/calc-perform.js';
 import { calcResistances, calcBlock, calcDefences } from './engine/calc-defence.js';
 import { TreeData } from './tree/tree-data.js';
-import { TreeRenderer, buildNodeInstances, buildConnectionInstances, NODE_COLORS, CONNECTION_COLORS } from './tree/tree-renderer.js';
+import { TreeRenderer, buildNodeLayers, buildConnectionInstances } from './tree/tree-renderer.js';
 import { TreeInteraction } from './tree/tree-interaction.js';
 import { TreeSearch } from './tree/tree-search.js';
 import { TreeAllocation } from './tree/tree-allocation.js';
+import { SpriteData } from './tree/sprite-data.js';
 
 const TAB_NAMES = ['Tree', 'Skills', 'Items', 'Calcs', 'Config', 'Import', 'Notes'];
 const TREE_DATA_URL = 'js/data/tree/3_25.json';
+const SPRITES_DATA_URL = 'js/data/tree/sprites.json';
 
 class PoBApp {
   constructor() {
@@ -32,6 +34,7 @@ class PoBApp {
 
     // Tree state
     this.treeData = null;
+    this.spriteData = null;
     this.treeRenderer = null;
     this.treeInteraction = null;
     this.treeSearch = null;
@@ -56,10 +59,20 @@ class PoBApp {
     this._treeLoading = true;
 
     try {
-      const resp = await fetch(TREE_DATA_URL);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const json = await resp.json();
-      this.treeData = new TreeData(json);
+      const [treeResp, spritesResp] = await Promise.all([
+        fetch(TREE_DATA_URL),
+        fetch(SPRITES_DATA_URL),
+      ]);
+      if (!treeResp.ok) throw new Error(`Tree HTTP ${treeResp.status}`);
+      if (!spritesResp.ok) throw new Error(`Sprites HTTP ${spritesResp.status}`);
+
+      const [treeJson, spritesJson] = await Promise.all([
+        treeResp.json(),
+        spritesResp.json(),
+      ]);
+
+      this.treeData = new TreeData(treeJson);
+      this.spriteData = new SpriteData(spritesJson);
       this._treeLoaded = true;
 
       // Create allocation with Scion (class 0) by default
@@ -93,7 +106,7 @@ class PoBApp {
 
     try {
       this.treeRenderer = new TreeRenderer(canvas);
-      this.treeRenderer.createFallbackAtlas();
+      this.treeRenderer.createFallbackTexture();
 
       // Set camera to center on tree with appropriate zoom
       const b = this.treeData.bounds;
@@ -105,6 +118,9 @@ class PoBApp {
       const zoomY = canvas.height / (treeH * 1.1);
       const zoom = Math.min(zoomX, zoomY);
       this.treeRenderer.setCamera(centerX, centerY, zoom);
+
+      // Load sprite textures
+      this._loadTreeTextures();
 
       // Build instances
       this._rebuildTreeInstances();
@@ -177,16 +193,30 @@ class PoBApp {
     }
   }
 
+  async _loadTreeTextures() {
+    if (!this.treeRenderer || !this.spriteData) return;
+    const textures = this.spriteData.getRequiredTextures();
+    const loads = [];
+    for (const url of Object.values(textures)) {
+      if (url) loads.push(this.treeRenderer.loadTexture(url).catch(() => null));
+    }
+    await Promise.all(loads);
+    // Re-set layers now that textures are loaded
+    this._rebuildTreeInstances();
+  }
+
   _rebuildTreeInstances() {
     if (!this.treeRenderer || !this.treeData) return;
 
     const highlighted = this.treeSearch?.lastResult?.matchIds;
     const spec = this.treeAllocation?.spec;
-    const nodeInstances = buildNodeInstances(this.treeData, spec, { highlighted });
     const connInstances = buildConnectionInstances(this.treeData, spec);
-
-    this.treeRenderer.setNodeInstances(nodeInstances);
     this.treeRenderer.setConnectionInstances(connInstances);
+
+    if (this.spriteData) {
+      const layers = buildNodeLayers(this.treeData, this.spriteData, spec, { highlighted });
+      this.treeRenderer.setNodeLayers(layers);
+    }
   }
 
   _startRenderLoop() {
