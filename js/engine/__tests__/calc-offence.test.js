@@ -10,6 +10,18 @@ import {
   calcSpeed,
   calcAverageDamage,
   calcTotalDPS,
+  DOT_DPS_CAP,
+  ailmentData,
+  calcAilmentChance,
+  calcAilmentBaseDamage,
+  calcAilmentDPS,
+  calcAilmentDuration,
+  calcDotMultiplier,
+  calcDotEffMult,
+  calcPoisonStacks,
+  calcCombinedDPS,
+  calcImpaleDPS,
+  calcCullMultiplier,
 } from '../calc-offence.js';
 import { ModDB } from '../mod-db.js';
 
@@ -323,5 +335,238 @@ describe('calcTotalDPS', () => {
 
   it('returns 0 with 0 speed', () => {
     expect(calcTotalDPS(100, 0, 100)).toBe(0);
+  });
+});
+
+// --- DoT / Ailment Tests ---
+
+describe('ailmentData constants', () => {
+  it('has correct ignite data', () => {
+    expect(ailmentData.Ignite.percentBase).toBe(0.9);
+    expect(ailmentData.Ignite.durationBase).toBe(4);
+    expect(ailmentData.Ignite.associatedType).toBe('Fire');
+  });
+
+  it('has correct bleed data', () => {
+    expect(ailmentData.Bleed.percentBase).toBe(0.7);
+    expect(ailmentData.Bleed.durationBase).toBe(5);
+    expect(ailmentData.Bleed.associatedType).toBe('Physical');
+  });
+
+  it('has correct poison data', () => {
+    expect(ailmentData.Poison.percentBase).toBe(0.3);
+    expect(ailmentData.Poison.durationBase).toBe(2);
+    expect(ailmentData.Poison.associatedType).toBe('Chaos');
+  });
+});
+
+describe('calcAilmentChance', () => {
+  it('returns hit chance when no crit', () => {
+    // 100% chance on hit, 0% crit
+    expect(calcAilmentChance(100, 100, 0)).toBeCloseTo(100);
+  });
+
+  it('weights hit and crit chances', () => {
+    // 50% on hit, 100% on crit, 50% crit chance
+    // 50 * 0.5 + 100 * 0.5 = 75
+    expect(calcAilmentChance(50, 100, 50)).toBeCloseTo(75);
+  });
+
+  it('returns crit chance when always critting', () => {
+    expect(calcAilmentChance(0, 80, 100)).toBeCloseTo(80);
+  });
+
+  it('returns 0 with 0% chance on both', () => {
+    expect(calcAilmentChance(0, 0, 50)).toBe(0);
+  });
+});
+
+describe('calcAilmentBaseDamage', () => {
+  it('returns hit damage with no crit', () => {
+    const base = calcAilmentBaseDamage(1000, 1500, 100, 100, 0);
+    expect(base).toBeCloseTo(1000);
+  });
+
+  it('returns crit damage at 100% crit', () => {
+    const base = calcAilmentBaseDamage(1000, 1500, 100, 100, 100);
+    expect(base).toBeCloseTo(1500);
+  });
+
+  it('weights based on chance proportions', () => {
+    // 50% on hit, 100% on crit, 50% crit chance
+    // chanceFromHit = 50 * 0.5 = 25, chanceFromCrit = 100 * 0.5 = 50
+    // base = 1000 * 25/75 + 1500 * 50/75 = 333.33 + 1000 = 1333.33
+    const base = calcAilmentBaseDamage(1000, 1500, 50, 100, 50);
+    expect(base).toBeCloseTo(1333.33, 1);
+  });
+
+  it('returns 0 when no chance', () => {
+    expect(calcAilmentBaseDamage(1000, 1500, 0, 0, 50)).toBe(0);
+  });
+});
+
+describe('calcAilmentDPS', () => {
+  it('calculates ignite DPS', () => {
+    // 1000 base * 0.9 percent * 1.0 effect * 1.0 rate * 1.0 eff * 1 stack = 900
+    expect(calcAilmentDPS(1000, 0.9, 1, 1, 1, 1)).toBeCloseTo(900);
+  });
+
+  it('applies effect modifier', () => {
+    // 1000 * 0.9 * 1.5 * 1 * 1 * 1 = 1350
+    expect(calcAilmentDPS(1000, 0.9, 1.5, 1, 1, 1)).toBeCloseTo(1350);
+  });
+
+  it('applies stacks', () => {
+    // 1000 * 0.3 * 1 * 1 * 1 * 5 = 1500 (5 poison stacks)
+    expect(calcAilmentDPS(1000, 0.3, 1, 1, 1, 5)).toBeCloseTo(1500);
+  });
+
+  it('caps at DOT_DPS_CAP', () => {
+    const dps = calcAilmentDPS(1e12, 1, 1, 1, 1, 1);
+    expect(dps).toBe(DOT_DPS_CAP);
+  });
+
+  it('returns 0 for 0 base damage', () => {
+    expect(calcAilmentDPS(0, 0.9, 1, 1, 1, 1)).toBe(0);
+  });
+
+  it('applies resistance via effMult', () => {
+    // 1000 * 0.7 * 1 * 1 * 0.25 * 1 = 175 (75% resist)
+    expect(calcAilmentDPS(1000, 0.7, 1, 1, 0.25, 1)).toBeCloseTo(175);
+  });
+});
+
+describe('calcAilmentDuration', () => {
+  it('returns base * mod', () => {
+    expect(calcAilmentDuration(4, 1.5)).toBeCloseTo(6);
+  });
+
+  it('floors duration mod at 0', () => {
+    expect(calcAilmentDuration(4, -0.5)).toBe(0);
+  });
+});
+
+describe('calcDotMultiplier', () => {
+  it('calculates from base DotMultiplier', () => {
+    const modList = new ModDB();
+    modList.newMod('DotMultiplier', 'BASE', 50, 'Tree');
+    const multi = calcDotMultiplier(modList, null, null);
+    expect(multi).toBeCloseTo(1.5);
+  });
+
+  it('adds specific dot multiplier', () => {
+    const modList = new ModDB();
+    modList.newMod('DotMultiplier', 'BASE', 30, 'Tree');
+    modList.newMod('FireDotMultiplier', 'BASE', 20, 'Item');
+    const multi = calcDotMultiplier(modList, null, 'FireDotMultiplier');
+    // 1 + (30 + 20)/100 = 1.5
+    expect(multi).toBeCloseTo(1.5);
+  });
+
+  it('respects override', () => {
+    const modList = new ModDB();
+    modList.newMod('DotMultiplier', 'BASE', 50, 'Tree');
+    modList.newMod('DotMultiplier', 'OVERRIDE', 100, 'Unique');
+    const multi = calcDotMultiplier(modList, null, null);
+    expect(multi).toBeCloseTo(2.0);
+  });
+});
+
+describe('calcDotEffMult', () => {
+  it('calculates with 0% resist', () => {
+    expect(calcDotEffMult(0, 0, 1)).toBeCloseTo(1);
+  });
+
+  it('reduces for positive resist', () => {
+    // 75% resist: (1 - 0.75) * 1 * 1 = 0.25
+    expect(calcDotEffMult(75, 0, 1)).toBeCloseTo(0.25);
+  });
+
+  it('amplifies for negative resist', () => {
+    // -50% resist: (1 + 0.5) * 1 * 1 = 1.5
+    expect(calcDotEffMult(-50, 0, 1)).toBeCloseTo(1.5);
+  });
+
+  it('applies takenInc and takenMore', () => {
+    // 0% resist, 20% takenInc, 1.1 takenMore
+    // 1 * 1.2 * 1.1 = 1.32
+    expect(calcDotEffMult(0, 20, 1.1)).toBeCloseTo(1.32);
+  });
+});
+
+describe('calcPoisonStacks', () => {
+  it('calculates stacks from hit rate and duration', () => {
+    // 80% hit chance, 100% poison chance, 2 attacks/s, 2s duration
+    // 0.8 * 1.0 * 2 * 2 = 3.2 stacks
+    expect(calcPoisonStacks(80, 100, 2, 2, 1)).toBeCloseTo(3.2);
+  });
+
+  it('returns 0 with 0 speed', () => {
+    expect(calcPoisonStacks(100, 100, 0, 2, 1)).toBe(0);
+  });
+
+  it('applies dps multiplier', () => {
+    // 100% hit, 100% poison, 1 aps, 2s dur, 3x dps mult
+    expect(calcPoisonStacks(100, 100, 1, 2, 3)).toBeCloseTo(6);
+  });
+});
+
+describe('calcCombinedDPS', () => {
+  it('sums hit and dot sources', () => {
+    const combined = calcCombinedDPS({
+      hitDPS: 10000,
+      bleedDPS: 1000,
+      igniteDPS: 2000,
+      poisonDPS: 500,
+    });
+    expect(combined).toBeCloseTo(13500);
+  });
+
+  it('caps dot portion at DOT_DPS_CAP', () => {
+    const combined = calcCombinedDPS({
+      hitDPS: 1000,
+      poisonDPS: DOT_DPS_CAP + 1000,
+    });
+    expect(combined).toBe(1000 + DOT_DPS_CAP);
+  });
+
+  it('handles only hit DPS', () => {
+    expect(calcCombinedDPS({ hitDPS: 5000 })).toBe(5000);
+  });
+
+  it('includes impale (uncapped)', () => {
+    const combined = calcCombinedDPS({
+      hitDPS: 10000,
+      impaleDPS: 3000,
+    });
+    expect(combined).toBe(13000);
+  });
+});
+
+describe('calcImpaleDPS', () => {
+  it('calculates impale DPS', () => {
+    // 1000 stored avg, 1.1 modifier, 90% hit, 2 aps, 1x mult
+    // 1000 * 0.1 * 0.9 * 1 * 2 = 180
+    const dps = calcImpaleDPS(1000, 1.1, 90, 2, 1);
+    expect(dps).toBeCloseTo(180);
+  });
+
+  it('returns 0 with no impale modifier bonus', () => {
+    expect(calcImpaleDPS(1000, 1.0, 100, 2, 1)).toBe(0);
+  });
+});
+
+describe('calcCullMultiplier', () => {
+  it('returns correct multiplier for 10% cull', () => {
+    // 1 / (1 - 0.1) = 1.1111
+    expect(calcCullMultiplier(10)).toBeCloseTo(1 / 0.9);
+  });
+
+  it('returns 1 for 0% cull', () => {
+    expect(calcCullMultiplier(0)).toBe(1);
+  });
+
+  it('returns correct multiplier for 20% cull', () => {
+    expect(calcCullMultiplier(20)).toBeCloseTo(1.25);
   });
 });
