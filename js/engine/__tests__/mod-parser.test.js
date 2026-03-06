@@ -170,3 +170,233 @@ describe('ModParser offence patterns', () => {
     expect(result).toBeNull();
   });
 });
+
+describe('ModParser totem/trap/mine patterns', () => {
+  it('parses totem placement speed', () => {
+    const result = parseMod('10% increased Totem Placement Speed');
+    expect(result[0].name).toBe('TotemPlacementSpeed');
+  });
+
+  it('parses totem life', () => {
+    const result = parseMod('20% increased Totem Life');
+    expect(result[0].name).toBe('TotemLife');
+  });
+
+  it('parses trap throwing speed', () => {
+    const result = parseMod('15% increased Trap Throwing Speed');
+    expect(result[0].name).toBe('TrapThrowingSpeed');
+  });
+
+  it('parses mine laying speed', () => {
+    const result = parseMod('10% increased Mine Laying Speed');
+    expect(result[0].name).toBe('MineLayingSpeed');
+  });
+
+  it('parses maximum totems', () => {
+    const result = parseMod('+1 to Maximum Number of Summoned Totems');
+    expect(result[0].name).toBe('ActiveTotemLimit');
+  });
+
+  it('parses brand activation frequency', () => {
+    const result = parseMod('20% increased Brand Activation Frequency');
+    expect(result[0].name).toBe('BrandActivationFrequency');
+  });
+});
+
+describe('ModParser minion patterns', () => {
+  it('parses maximum zombies', () => {
+    const result = parseMod('+1 to Maximum Number of Raised Zombies');
+    expect(result[0].name).toBe('ActiveZombieLimit');
+  });
+
+  it('parses maximum skeletons', () => {
+    const result = parseMod('+2 to Maximum Number of Summoned Skeletons');
+    expect(result[0].name).toBe('ActiveSkeletonLimit');
+  });
+
+  it('parses maximum spectres', () => {
+    const result = parseMod('+1 to Maximum Number of Raised Spectres');
+    expect(result[0].name).toBe('ActiveSpectreLimit');
+  });
+
+  it('parses maximum golems', () => {
+    const result = parseMod('+1 to Maximum Number of Summoned Golems');
+    expect(result[0].name).toBe('ActiveGolemLimit');
+  });
+
+  it('parses minion damage as MinionModifier LIST', () => {
+    const result = parseMod('30% increased Minion Damage');
+    expect(result[0].name).toBe('MinionModifier');
+    expect(result[0].type).toBe('LIST');
+    expect(result[0].value.mod.name).toBe('Damage');
+    expect(result[0].value.mod.value).toBe(30);
+  });
+});
+
+describe('ModParser aura/curse patterns', () => {
+  it('parses aura effect', () => {
+    const result = parseMod('15% increased Aura Effect');
+    expect(result[0].name).toBe('AuraEffect');
+  });
+
+  it('parses curse effect', () => {
+    const result = parseMod('20% increased Effect of your Curses');
+    expect(result[0].name).toBe('CurseEffect');
+  });
+
+  it('parses buff effect', () => {
+    const result = parseMod('10% increased Buff Effect');
+    expect(result[0].name).toBe('BuffEffect');
+  });
+});
+
+describe('ModParser flask patterns', () => {
+  it('parses flask effect duration', () => {
+    const result = parseMod('20% increased Flask Effect Duration');
+    expect(result[0].name).toBe('FlaskDuration');
+  });
+
+  it('parses flask charges used', () => {
+    const result = parseMod('20% reduced Flask Charges Used');
+    expect(result[0].name).toBe('FlaskChargesUsed');
+    expect(result[0].value).toBe(-20);
+  });
+
+  it('parses flask life recovery rate', () => {
+    const result = parseMod('10% increased Flask Life Recovery Rate');
+    expect(result[0].name).toBe('FlaskLifeRecoveryRate');
+  });
+
+  it('parses flask recovery rate', () => {
+    const result = parseMod('15% increased Flask Recovery Rate');
+    expect(result[0].name).toBe('FlaskRecoveryRate');
+  });
+
+  it('parses flask charges gained', () => {
+    const result = parseMod('20% increased Flask Charges Gained');
+    expect(result[0].name).toBe('FlaskChargesGained');
+  });
+});
+
+describe('ModParser leech/on-kill patterns', () => {
+  it('parses life gained on kill', () => {
+    const result = parseMod('+10 to Life gained on Kill');
+    expect(result[0].name).toBe('LifeOnKill');
+  });
+
+  it('parses mana gained on kill', () => {
+    const result = parseMod('+5 to Mana gained on Kill');
+    expect(result[0].name).toBe('ManaOnKill');
+  });
+
+  it('parses life leech rate', () => {
+    const result = parseMod('20% increased Total Recovery per second from Life Leech');
+    expect(result[0].name).toBe('LifeLeechRate');
+  });
+});
+
+describe('ModParser ailment patterns', () => {
+  it('parses poison chance', () => {
+    const result = parseMod('+10% chance to Poison on Hit');
+    expect(result[0].name).toBe('PoisonChance');
+  });
+
+  it('parses bleed chance', () => {
+    const result = parseMod('25% chance to cause Bleeding on Hit');
+    expect(result[0].name).toBe('BleedChance');
+  });
+
+  it('parses ignite chance', () => {
+    const result = parseMod('+10% chance to Ignite');
+    expect(result[0].name).toBe('EnemyIgniteChance');
+  });
+
+  it('parses shock chance', () => {
+    const result = parseMod('+15% chance to Shock');
+    expect(result[0].name).toBe('EnemyShockChance');
+  });
+
+  it('parses poison duration', () => {
+    const result = parseMod('20% increased Poison Duration');
+    expect(result[0].name).toBe('EnemyPoisonDuration');
+  });
+});
+
+describe('ModParser charge duration patterns', () => {
+  it('parses power charge duration', () => {
+    const result = parseMod('20% increased Power Charge Duration');
+    expect(result[0].name).toBe('PowerChargesDuration');
+  });
+
+  it('parses frenzy charge duration', () => {
+    const result = parseMod('20% increased Frenzy Charge Duration');
+    expect(result[0].name).toBe('FrenzyChargesDuration');
+  });
+
+  it('parses charge duration', () => {
+    const result = parseMod('15% increased Charge Duration');
+    expect(result[0].name).toBe('ChargeDuration');
+  });
+});
+
+describe('ModParser skill modifier patterns', () => {
+  it('parses cooldown recovery', () => {
+    const result = parseMod('20% increased Cooldown Recovery Rate');
+    expect(result[0].name).toBe('CooldownRecovery');
+  });
+
+  it('parses duration', () => {
+    const result = parseMod('30% increased Skill Effect Duration');
+    expect(result[0].name).toBe('Duration');
+  });
+
+  it('parses projectile count', () => {
+    const result = parseMod('+2 Projectiles');
+    expect(result[0].name).toBe('ProjectileCount');
+  });
+
+  it('parses double damage chance', () => {
+    const result = parseMod('+5% chance to Deal Double Damage');
+    expect(result[0].name).toBe('DoubleDamageChance');
+  });
+});
+
+describe('ModParser buff condition patterns', () => {
+  it('parses onslaught', () => {
+    const result = parseMod('You have Onslaught');
+    expect(result[0].name).toBe('Condition:Onslaught');
+    expect(result[0].type).toBe('FLAG');
+  });
+
+  it('parses phasing', () => {
+    const result = parseMod('You have Phasing');
+    expect(result[0].name).toBe('Condition:Phasing');
+    expect(result[0].type).toBe('FLAG');
+  });
+});
+
+describe('ModParser modFlag postfix patterns', () => {
+  it('applies trap keyword flag', () => {
+    const result = parseMod('20% increased Damage with Traps');
+    expect(result[0].name).toBe('Damage');
+    expect(result[0].keywordFlags & 0x00001000).toBeTruthy(); // KeywordFlag.Trap
+  });
+
+  it('applies mine keyword flag', () => {
+    const result = parseMod('20% increased Damage with Mines');
+    expect(result[0].name).toBe('Damage');
+    expect(result[0].keywordFlags & 0x00002000).toBeTruthy(); // KeywordFlag.Mine
+  });
+
+  it('applies totem keyword flag', () => {
+    const result = parseMod('20% increased Damage totem');
+    expect(result[0].name).toBe('Damage');
+    expect(result[0].keywordFlags & 0x00004000).toBeTruthy(); // KeywordFlag.Totem
+  });
+
+  it('applies brand keyword flag', () => {
+    const result = parseMod('20% increased Damage brand');
+    expect(result[0].name).toBe('Damage');
+    expect(result[0].keywordFlags & 0x00100000).toBeTruthy(); // KeywordFlag.Brand
+  });
+});
