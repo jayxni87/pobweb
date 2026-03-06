@@ -97,6 +97,9 @@ export class TreeData {
         _inactiveIcon: ndata.inactiveIcon || null,
         _activeIcon: ndata.activeIcon || null,
         masteryEffects: ndata.masteryEffects || [],
+        expansionJewel: ndata.expansionJewel || null,
+        isProxy: ndata.isProxy || false,
+        isJewelSocket: ndata.isJewelSocket || false,
         x: 0,
         y: 0,
       };

@@ -5,7 +5,6 @@ import clusterData from '../../data/cluster-jewels.json';
 describe('computeSubgraphId', () => {
   it('computes ID for large socket at index 3', () => {
     // Bit 16 = 1, bits 4-5 = sizeIndex 2 (0b10), bits 6-8 = large index 3 (0b011)
-    // 0x10000 | (2 << 4) | (3 << 6) = 65536 | 32 | 192 = 65760
     const id = computeSubgraphId(2, 3, 0);
     expect(id).toBe(0x10000 | (2 << 4) | (3 << 6));
     expect(id).toBe(65760);
@@ -18,17 +17,31 @@ describe('computeSubgraphId', () => {
 });
 
 describe('buildSubgraph', () => {
-  // Use real cluster-jewels.json data for the jewel definition
+  // The proxy is a NODE ID. The proxy node belongs to a group. The group has position.
   function makeTestContext() {
     const treeData = {
       groups: {
-        '1000': { x: 5000, y: 5000 },
+        '500': { x: 0, y: 0, n: [] }, // parent socket's group (not used for positioning)
+        '999': { x: 5000, y: 5000, n: [] }, // proxy node's group (used for positioning)
       },
       nodes: {
+        // Proxy node — this is what ej.proxy points to
+        1000: {
+          id: 1000,
+          type: 'normal',
+          group: '999',
+          orbit: 3,
+          orbitIndex: 1,
+          isProxy: true,
+          adjacent: [],
+        },
+        // Parent socket node
         26725: {
           id: 26725,
           type: 'jewel',
-          group: 500,
+          group: '500',
+          orbit: 1,
+          orbitIndex: 5,
           expansionJewel: { size: 2, index: 3, proxy: '1000' },
           adjacent: [100],
         },
@@ -54,6 +67,7 @@ describe('buildSubgraph', () => {
       clusterJewelNodeCount: 8,
       clusterJewelSocketCount: 2,
       clusterJewelNotables: ['Cremator', 'Smoking Remains'],
+      clusterJewelAddedMods: [],
     };
   }
 
@@ -101,13 +115,13 @@ describe('buildSubgraph', () => {
 
     const subgraph = buildSubgraph(parsedJewel, treeData.nodes[26725], treeData, clusterData, constants);
 
-    // All nodes should have x,y positions near the proxy group
+    // Large cluster uses orbit 3 (sizeIndex 2 + 1), radius = orbitRadii[3] = 335
     for (const node of subgraph.nodes) {
       const dx = node.x - 5000;
       const dy = node.y - 5000;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      // Should be within orbit radius range (0-846)
-      expect(dist).toBeLessThanOrEqual(850);
+      // Should be at orbit 3 radius (335) within rounding tolerance
+      expect(dist).toBeCloseTo(335, 0);
     }
   });
 
@@ -157,7 +171,7 @@ describe('buildSubgraph', () => {
     expect(subgraph).toBeNull();
   });
 
-  it('returns null for missing proxy group', () => {
+  it('returns null for missing proxy node', () => {
     const { clusterData, constants } = makeTestContext();
     const treeData = {
       groups: {},
@@ -166,6 +180,7 @@ describe('buildSubgraph', () => {
           id: 26725,
           type: 'jewel',
           expansionJewel: { size: 2, index: 3, proxy: '9999' },
+          adjacent: [],
         },
       },
       clusterNodeMap: new Map(),
@@ -189,15 +204,31 @@ describe('buildSubgraph', () => {
     expect(last.adjacent).toContain(first.id);
   });
 
+  it('uses node IDs based on orbit position index, not sequential', () => {
+    const { clusterData, treeData, constants } = makeTestContext();
+    const parsedJewel = makeParsedJewel();
+
+    const subgraph = buildSubgraph(parsedJewel, treeData.nodes[26725], treeData, clusterData, constants);
+
+    // Node IDs should be subgraphBaseId + positionIndex
+    const baseId = subgraph.id;
+    for (const node of subgraph.nodes) {
+      const offset = node.id - baseId;
+      // Offset should be the cluster orbit position index (0-11), not sequential
+      expect(offset).toBe(node._positionIndex);
+      expect(offset).toBeLessThan(12); // totalIndicies for Large is 12
+    }
+  });
+
   it('returns correct subgraph metadata', () => {
     const { clusterData, treeData, constants } = makeTestContext();
     const parsedJewel = makeParsedJewel();
 
     const subgraph = buildSubgraph(parsedJewel, treeData.nodes[26725], treeData, clusterData, constants);
 
-    expect(subgraph.groupId).toBe('1000');
+    // groupId should be the proxy node's group, not the proxy node ID itself
+    expect(subgraph.groupId).toBe('999');
     expect(subgraph.parentSocketId).toBe(26725);
     expect(subgraph.sizeIndex).toBe(2);
-    expect(subgraph.id).toBe(computeSubgraphId(2, 3, 0));
   });
 });
