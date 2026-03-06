@@ -28,6 +28,7 @@ export class TreeData {
     this._typeIndex = new Map();
     this._ascendancyIndex = new Map();
     this._classNameMap = new Map();
+    this.clusterNodeMap = new Map();
     this.bounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
     this._load(treeJson);
@@ -150,6 +151,18 @@ export class TreeData {
     }
 
     this.bounds = { minX, minY, maxX, maxY };
+
+    // Build cluster node map: orphan notable/keystone nodes (no group) for cluster jewel subgraphs
+    for (const [nid, ndata] of Object.entries(json.nodes || {})) {
+      if (ndata.group !== undefined) continue;  // skip grouped nodes (already loaded above)
+      if (!ndata.isNotable && !ndata.isKeystone) continue;
+      this.clusterNodeMap.set(ndata.name, {
+        name: ndata.name,
+        stats: Array.isArray(ndata.stats) ? ndata.stats : [],
+        icon: ndata.icon || null,
+        isKeystone: !!ndata.isKeystone,
+      });
+    }
 
     // Load classes
     this._classes = (json.classes || []).map((cls, idx) => {

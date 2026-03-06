@@ -171,6 +171,39 @@ describe('TreeData', () => {
   });
 });
 
+describe('clusterNodeMap', () => {
+  it('indexes cluster notable nodes by name', () => {
+    const json = {
+      constants: { orbitRadii: [0, 82], skillsPerOrbit: [1, 6] },
+      groups: { '1': { x: 0, y: 0 } },
+      nodes: {
+        '100': { group: 1, orbit: 0, orbitIndex: 0, classStartIndex: 0 },
+        '999': { isNotable: true, name: 'Cremator', stats: ['Ignited enemies die faster'], icon: 'fire.png' },
+      },
+      classes: [],
+    };
+    const tree = new TreeData(json);
+    expect(tree.clusterNodeMap).toBeDefined();
+    expect(tree.clusterNodeMap.get('Cremator')).toBeDefined();
+    expect(tree.clusterNodeMap.get('Cremator').stats).toEqual(['Ignited enemies die faster']);
+    expect(tree.clusterNodeMap.get('Cremator').icon).toBe('fire.png');
+  });
+
+  it('does not include grouped notables in clusterNodeMap', () => {
+    const json = {
+      constants: { orbitRadii: [0, 82], skillsPerOrbit: [1, 6] },
+      groups: { '1': { x: 0, y: 0 } },
+      nodes: {
+        '100': { group: 1, orbit: 0, orbitIndex: 0, classStartIndex: 0 },
+        '200': { group: 1, orbit: 1, orbitIndex: 0, isNotable: true, name: 'Regular Notable', stats: ['stat'] },
+      },
+      classes: [],
+    };
+    const tree = new TreeData(json);
+    expect(tree.clusterNodeMap.has('Regular Notable')).toBe(false);
+  });
+});
+
 describe('orbit angle calculation', () => {
   // Helper: build a minimal tree with one node at the given orbit/orbitIndex
   function makeOrbitTestJson({ orbit, orbitIndex, skillsPerOrbit, orbitRadii }) {
