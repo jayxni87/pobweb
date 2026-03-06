@@ -1,0 +1,50 @@
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #1a1a2e;
+  --bg-tertiary: #16213e;
+  --gold: #c8a03e;
+  --gold-dim: #8a6d2b;
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-muted: #707070;
+  --fire: #e05030;
+  --cold: #5080e0;
+  --lightning: #e0d050;
+  --chaos: #a050d0;
+  --physical: #e0e0e0;
+  --life: #e04040;
+  --mana: #4060e0;
+  --es: #6070b0;
+  --border: #2a2a4e;
+  --font-mono: 'Consolas', 'Monaco', monospace;
+  --font-main: 'Segoe UI', system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  font-size: 14px;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: 40px 36px 1fr 24px;
+  grid-template-columns: 1fr 280px;
+  grid-template-areas:
+    "menu menu"
+    "tabs tabs"
+    "content sidebar"
+    "status status";
+  height: 100vh;
+}
+
+#menu-bar { grid-area: menu; background: var(--bg-secondary); border-bottom: 1px solid var(--border); }
+#tab-bar { grid-area: tabs; background: var(--bg-secondary); border-bottom: 1px solid var(--border); }
+#tab-content { grid-area: content; overflow: auto; }
+#stat-sidebar { grid-area: sidebar; background: var(--bg-secondary); border-left: 1px solid var(--border); overflow-y: auto; }
+#status-bar { grid-area: status; background: var(--bg-tertiary); border-top: 1px solid var(--border); }

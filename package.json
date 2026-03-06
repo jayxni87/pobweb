@@ -1,0 +1,14 @@
+{
+  "name": "pobweb",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "convert-data": "node tools/convert-lua-data.js"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}
