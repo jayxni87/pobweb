@@ -483,6 +483,33 @@ body {
 .mastery-effect-item.selected { background: var(--accent); color: #fff; }
 .mastery-effect-item.used { opacity: 0.4; pointer-events: none; }
 
+/* ─── Jewel Popup ─── */
+.jewel-paste-area {
+  width: 100%;
+  min-height: 120px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 12px;
+  padding: 8px;
+  resize: vertical;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.jewel-parse-status {
+  font-size: 12px;
+  margin-bottom: 8px;
+  min-height: 1.5em;
+}
+
+.jewel-info {
+  padding: 8px 0;
+  color: var(--text-secondary);
+}
+
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }

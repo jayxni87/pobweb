@@ -16,6 +16,8 @@ import { TreeAllocation } from './tree/tree-allocation.js';
 import { SpriteData } from './tree/sprite-data.js';
 import { importFromShareCode, importFromXml, exportAsXml, copyShareCode } from './io/file-manager.js';
 import { Build } from './io/build-xml.js';
+import { parseClusterJewel } from './models/cluster-jewel.js';
+import { buildSubgraph } from './tree/subgraph-builder.js';
 
 const TAB_NAMES = ['Tree', 'Skills', 'Items', 'Calcs', 'Config', 'Import', 'Notes'];
 const TREE_DATA_URL = 'js/data/tree/3_25.json';
@@ -46,6 +48,7 @@ class PoBApp {
     this._treeLoading = false;
     this._treeLoaded = false;
     this._animFrameId = null;
+    this._clusterData = null;
   }
 
   init() {
@@ -78,6 +81,12 @@ class PoBApp {
       this.treeData = new TreeData(treeJson);
       this.spriteData = new SpriteData(spritesJson);
       this._treeLoaded = true;
+
+      // Load cluster jewels data
+      const clusterResp = await fetch('js/data/cluster-jewels.json');
+      if (clusterResp.ok) {
+        this._clusterData = await clusterResp.json();
+      }
 
       // Create allocation with Scion (class 0) by default
       const classId = this.treeData.classNameToId(this.className);
@@ -136,6 +145,11 @@ class PoBApp {
       this.treeInteraction.onNodeClick = (node) => {
         if (!node) return;
         if (node.type === 'classStart') return;
+        // Handle jewel socket clicks for cluster jewels
+        if (node.type === 'jewel' && node.expansionJewel) {
+          this._onJewelSocketClick(node);
+          return;
+        }
         if (node.type === 'mastery') {
           this._onMasteryClick(node);
           return;
@@ -419,6 +433,105 @@ class PoBApp {
       this._runCalc();
       close();
     });
+  }
+
+  _onJewelSocketClick(node) {
+    if (!this.treeAllocation || !this._clusterData) return;
+    const spec = this.treeAllocation.spec;
+    const hasJewel = spec.jewels.has(node.id);
+    this._showJewelPopup(node, hasJewel);
+  }
+
+  _showJewelPopup(node, hasJewel) {
+    const spec = this.treeAllocation.spec;
+    const overlay = document.createElement('div');
+    overlay.className = 'pob-modal-overlay';
+
+    if (hasJewel) {
+      const jewel = spec.jewels.get(node.id);
+      overlay.innerHTML = `
+        <div class="pob-modal">
+          <div class="pob-modal-title">Jewel Socket</div>
+          <div class="jewel-info">Equipped: ${jewel?.baseName || 'Cluster Jewel'}</div>
+          <div class="pob-modal-actions">
+            <button class="pob-btn jewel-unequip-btn">Unequip</button>
+            <button class="pob-btn mastery-cancel-btn">Cancel</button>
+          </div>
+        </div>
+      `;
+    } else {
+      overlay.innerHTML = `
+        <div class="pob-modal">
+          <div class="pob-modal-title">Equip Cluster Jewel</div>
+          <textarea class="jewel-paste-area" rows="8" placeholder="Paste cluster jewel item text here..."></textarea>
+          <div class="jewel-parse-status"></div>
+          <div class="pob-modal-actions">
+            <button class="pob-btn mastery-cancel-btn">Cancel</button>
+            <button class="pob-btn pob-btn-primary jewel-equip-btn" disabled>Equip</button>
+          </div>
+        </div>
+      `;
+    }
+
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+
+    // Cancel
+    overlay.querySelector('.mastery-cancel-btn').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    if (hasJewel) {
+      overlay.querySelector('.jewel-unequip-btn').addEventListener('click', () => {
+        spec._removeSubgraph(node.id);
+        spec.jewels.delete(node.id);
+        this._rebuildTreeInstances();
+        this._updateStatusBar();
+        this._runCalc();
+        close();
+      });
+    } else {
+      const textarea = overlay.querySelector('.jewel-paste-area');
+      const equipBtn = overlay.querySelector('.jewel-equip-btn');
+      const status = overlay.querySelector('.jewel-parse-status');
+      let parsedJewel = null;
+
+      textarea.addEventListener('input', () => {
+        parsedJewel = parseClusterJewel(textarea.value, this._clusterData);
+        if (parsedJewel.clusterJewelValid) {
+          status.textContent = `${parsedJewel.baseName}: ${parsedJewel.clusterJewelNodeCount} nodes, ` +
+            `${parsedJewel.clusterJewelSocketCount} sockets, ` +
+            `${parsedJewel.clusterJewelNotables.length} notables`;
+          status.style.color = '#8f8';
+          equipBtn.disabled = false;
+        } else {
+          status.textContent = parsedJewel.baseName ? 'Invalid cluster jewel data' : '';
+          status.style.color = '#f88';
+          equipBtn.disabled = true;
+        }
+      });
+
+      equipBtn.addEventListener('click', () => {
+        if (!parsedJewel?.clusterJewelValid) return;
+        const constants = {
+          orbitRadii: [0, 82, 162, 335, 493, 662, 846],
+          skillsPerOrbit: [1, 6, 16, 16, 40, 72, 72],
+        };
+        const subgraph = buildSubgraph(parsedJewel, node, this.treeData, this._clusterData, constants);
+        if (!subgraph) {
+          status.textContent = 'Failed to build subgraph';
+          status.style.color = '#f88';
+          return;
+        }
+        spec.jewels.set(node.id, { ...parsedJewel, _itemText: textarea.value });
+        spec._applySubgraph(node.id, subgraph);
+        this._rebuildTreeInstances();
+        this._updateStatusBar();
+        this._runCalc();
+        close();
+      });
+
+      setTimeout(() => textarea.focus(), 50);
+    }
   }
 
   _initMenuBar() {
