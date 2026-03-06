@@ -170,3 +170,76 @@ describe('TreeData', () => {
     expect(td.nodes[1]).toBeDefined();
   });
 });
+
+describe('orbit angle calculation', () => {
+  // Helper: build a minimal tree with one node at the given orbit/orbitIndex
+  function makeOrbitTestJson({ orbit, orbitIndex, skillsPerOrbit, orbitRadii }) {
+    return {
+      classes: [],
+      nodes: {
+        1: {
+          id: 1,
+          name: 'Test Node',
+          type: 'normal',
+          group: 1,
+          orbit,
+          orbitIndex,
+          stats: [],
+          adjacent: [],
+        },
+      },
+      groups: {
+        1: { x: 0, y: 0, orbits: [0, 1, 2, 3, 4] },
+      },
+      constants: { orbitRadii, skillsPerOrbit },
+    };
+  }
+
+  it('16-node orbit uses non-uniform angles (orbitIndex 1 => 30 degrees)', () => {
+    // Orbit 2 with 16 skills, radius 162, group at origin
+    // PoB angle for orbitIndex 1 in 16-node orbit = 30 degrees = PI/6 rad
+    // x = sin(PI/6) * 162 = 0.5 * 162 = 81
+    // y = -cos(PI/6) * 162 = -0.866 * 162 ≈ -140.296
+    const json = makeOrbitTestJson({
+      orbit: 2,
+      orbitIndex: 1,
+      skillsPerOrbit: [1, 6, 16, 16, 40],
+      orbitRadii: [0, 82, 162, 335, 493],
+    });
+    const td = new TreeData(json);
+    const node = td.getNode(1);
+    expect(node.x).toBeCloseTo(81, 0);
+    expect(node.y).toBeCloseTo(-140.3, 0);
+  });
+
+  it('stores node.angle for each node', () => {
+    // orbitIndex 0 should have angle = 0
+    const json = makeOrbitTestJson({
+      orbit: 2,
+      orbitIndex: 0,
+      skillsPerOrbit: [1, 6, 16, 16, 40],
+      orbitRadii: [0, 82, 162, 335, 493],
+    });
+    const td = new TreeData(json);
+    const node = td.getNode(1);
+    expect(node.angle).toBeDefined();
+    expect(node.angle).toBe(0);
+  });
+
+  it('6-node orbit uses uniform spacing (orbitIndex 1 => 60 degrees)', () => {
+    // Orbit 1 with 6 skills, radius 82, group at origin
+    // Uniform: angle = 2*PI*1/6 = PI/3 = 60 degrees
+    // x = sin(PI/3) * 82 = 0.866 * 82 ≈ 71.0
+    // y = -cos(PI/3) * 82 = -0.5 * 82 = -41
+    const json = makeOrbitTestJson({
+      orbit: 1,
+      orbitIndex: 1,
+      skillsPerOrbit: [1, 6, 16, 16, 40],
+      orbitRadii: [0, 82, 162, 335, 493],
+    });
+    const td = new TreeData(json);
+    const node = td.getNode(1);
+    expect(node.x).toBeCloseTo(71.0, 0);
+    expect(node.y).toBeCloseTo(-41, 0);
+  });
+});

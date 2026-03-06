@@ -3,6 +3,21 @@
 
 export const NODE_TYPES = ['classStart', 'normal', 'notable', 'keystone', 'socket', 'mastery', 'ascendancyStart'];
 
+// Non-uniform angle tables for 16-node and 40-node orbits (matching PoB).
+// All other orbit sizes use uniform spacing.
+const ORBIT_ANGLES_16 = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
+const ORBIT_ANGLES_40 = [0, 10, 20, 30, 40, 45, 50, 60, 70, 80, 90, 100, 110, 120, 130, 135, 140, 150, 160, 170, 180, 190, 200, 210, 220, 225, 230, 240, 250, 260, 270, 280, 290, 300, 310, 315, 320, 330, 340, 350];
+
+export function buildOrbitAngles(skillsPerOrbit) {
+  const DEG_TO_RAD = Math.PI / 180;
+  return skillsPerOrbit.map(n => {
+    if (n === 16) return ORBIT_ANGLES_16.map(d => d * DEG_TO_RAD);
+    if (n === 40) return ORBIT_ANGLES_40.map(d => d * DEG_TO_RAD);
+    // Uniform spacing for all other orbit sizes
+    return Array.from({ length: n }, (_, i) => (2 * Math.PI * i) / n);
+  });
+}
+
 export class TreeData {
   constructor(treeJson) {
     this.nodes = {};
@@ -21,6 +36,7 @@ export class TreeData {
   _load(json) {
     const orbitRadii = json.constants?.orbitRadii || [0, 82, 162, 335, 493, 662, 846];
     const skillsPerOrbit = json.constants?.skillsPerOrbit || [1, 6, 16, 16, 40, 72, 72];
+    const orbitAngles = buildOrbitAngles(skillsPerOrbit);
 
     // Load groups
     for (const [gid, gdata] of Object.entries(json.groups || {})) {
@@ -84,14 +100,15 @@ export class TreeData {
         y: 0,
       };
 
-      // Compute position from group + orbit
+      // Compute position from group + orbit (matches PoB convention)
       const group = this.groups[node.group];
       if (group) {
         const radius = orbitRadii[node.orbit] || 0;
-        const nodesInOrbit = skillsPerOrbit[node.orbit] || 1;
-        const angle = (2 * Math.PI * node.orbitIndex) / nodesInOrbit - Math.PI / 2;
-        node.x = group.x + radius * Math.cos(angle);
-        node.y = group.y + radius * Math.sin(angle);
+        const angles = orbitAngles[node.orbit];
+        const angle = angles ? (angles[node.orbitIndex] || 0) : 0;
+        node.angle = angle;
+        node.x = group.x + Math.sin(angle) * radius;
+        node.y = group.y - Math.cos(angle) * radius;
       }
 
       if (node.x < minX) minX = node.x;

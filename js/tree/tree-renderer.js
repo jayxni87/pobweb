@@ -790,13 +790,43 @@ export function buildConnectionInstances(treeData, spec, options = {}) {
 
       const bothAllocated = spec && spec.isAllocated(node.id) && spec.isAllocated(adjId);
       const color = bothAllocated ? CONNECTION_COLORS.active : CONNECTION_COLORS.inactive;
+      const width = bothAllocated ? 8 : 5;
 
-      connections.push({
-        x1: node.x, y1: node.y,
-        x2: adjNode.x, y2: adjNode.y,
-        width: bothAllocated ? 8 : 5,
-        color,
-      });
+      // Arc connection: same group, same orbit (>0), both have angles
+      const isArc = node.group === adjNode.group && node.orbit === adjNode.orbit && node.orbit > 0
+        && node.angle !== undefined && adjNode.angle !== undefined;
+
+      if (isArc) {
+        const group = treeData.groups[node.group];
+        const radius = Math.sqrt((node.x - group.x) ** 2 + (node.y - group.y) ** 2);
+        let startAngle = node.angle;
+        let endAngle = adjNode.angle;
+        let arcSpan = endAngle - startAngle;
+        if (arcSpan > Math.PI) arcSpan -= 2 * Math.PI;
+        if (arcSpan < -Math.PI) arcSpan += 2 * Math.PI;
+        const segCount = Math.max(2, Math.round(Math.abs(arcSpan) / (Math.PI / 2) * 16));
+        for (let s = 0; s < segCount; s++) {
+          const t0 = s / segCount;
+          const t1 = (s + 1) / segCount;
+          const a0 = startAngle + arcSpan * t0;
+          const a1 = startAngle + arcSpan * t1;
+          connections.push({
+            x1: group.x + Math.sin(a0) * radius,
+            y1: group.y - Math.cos(a0) * radius,
+            x2: group.x + Math.sin(a1) * radius,
+            y2: group.y - Math.cos(a1) * radius,
+            width,
+            color,
+          });
+        }
+      } else {
+        connections.push({
+          x1: node.x, y1: node.y,
+          x2: adjNode.x, y2: adjNode.y,
+          width,
+          color,
+        });
+      }
     }
   }
 
