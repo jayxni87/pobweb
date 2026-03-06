@@ -139,4 +139,29 @@ describe('xmlToBuild', () => {
     expect(build).toBeDefined();
     expect(build.name).toBe('');
   });
+
+  it('round-trips mastery effects', () => {
+    const original = new Build({
+      treeNodes: [100, 200, 300],
+      masteryEffects: [
+        { nodeId: 200, effectId: 29161 },
+        { nodeId: 300, effectId: 54321 },
+      ],
+    });
+    const xml = buildToXml(original);
+    expect(xml).toContain('masteryEffects="{200,29161},{300,54321}"');
+    const restored = xmlToBuild(xml);
+    expect(restored.masteryEffects).toEqual([
+      { nodeId: 200, effectId: 29161 },
+      { nodeId: 300, effectId: 54321 },
+    ]);
+  });
+
+  it('handles build with no mastery effects', () => {
+    const original = new Build({ treeNodes: [100] });
+    const xml = buildToXml(original);
+    expect(xml).not.toContain('masteryEffects');
+    const restored = xmlToBuild(xml);
+    expect(restored.masteryEffects).toEqual([]);
+  });
 });

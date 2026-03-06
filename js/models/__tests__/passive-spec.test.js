@@ -153,3 +153,115 @@ describe('PassiveSpec', () => {
     expect(spec.isAllocated(2)).toBe(false);
   });
 });
+
+// Helper: make a tree with mastery nodes
+function makeTreeWithMasteries() {
+  return {
+    nodes: {
+      1: { id: 1, name: 'Start', type: 'classStart', stats: [], adjacent: [2, 20, 30], masteryEffects: [] },
+      2: { id: 2, name: 'Node A', type: 'normal', stats: ['+10 to Strength'], adjacent: [1], masteryEffects: [] },
+      20: { id: 20, name: 'Life Mastery', type: 'mastery', stats: [], adjacent: [1], masteryEffects: [
+        { effect: 100, stats: ['+50 to maximum Life'] },
+        { effect: 101, stats: ['10% increased maximum Life'] },
+        { effect: 102, stats: ['Regenerate 1% Life per second'] },
+      ]},
+      30: { id: 30, name: 'Life Mastery', type: 'mastery', stats: [], adjacent: [1], masteryEffects: [
+        { effect: 100, stats: ['+50 to maximum Life'] },
+        { effect: 101, stats: ['10% increased maximum Life'] },
+        { effect: 102, stats: ['Regenerate 1% Life per second'] },
+      ]},
+    },
+    classStarts: { 0: 1 },
+  };
+}
+
+describe('PassiveSpec mastery selections', () => {
+  it('sets and gets a mastery effect', () => {
+    const tree = makeTreeWithMasteries();
+    const spec = new PassiveSpec(tree, 0);
+    spec.allocate(20);
+    expect(spec.setMasteryEffect(20, 100)).toBe(true);
+    expect(spec.getMasteryEffect(20)).toBe(100);
+  });
+
+  it('refuses to set effect on non-mastery node', () => {
+    const tree = makeTreeWithMasteries();
+    const spec = new PassiveSpec(tree, 0);
+    spec.allocate(2);
+    expect(spec.setMasteryEffect(2, 100)).toBe(false);
+  });
+
+  it('refuses to set effect on unallocated mastery', () => {
+    const tree = makeTreeWithMasteries();
+    const spec = new PassiveSpec(tree, 0);
+    expect(spec.setMasteryEffect(20, 100)).toBe(false);
+  });
+
+  it('refuses to set invalid effect id', () => {
+    const tree = makeTreeWithMasteries();
+    const spec = new PassiveSpec(tree, 0);
+    spec.allocate(20);
+    expect(spec.setMasteryEffect(20, 999)).toBe(false);
+  });
+
+  it('clears a mastery effect', () => {
+    const tree = makeTreeWithMasteries();
+    const spec = new PassiveSpec(tree, 0);
+    spec.allocate(20);
+    spec.setMasteryEffect(20, 100);
+    spec.clearMasteryEffect(20);
+    expect(spec.getMasteryEffect(20)).toBeNull();
+  });
+
+  it('tracks used effects across nodes with same mastery name', () => {
+    const tree = makeTreeWithMasteries();
+    const spec = new PassiveSpec(tree, 0);
+    spec.allocate(20);
+    spec.allocate(30);
+    spec.setMasteryEffect(20, 100);
+    spec.setMasteryEffect(30, 101);
+    const used = spec.getUsedEffectsForMasteryName('Life Mastery');
+    expect(used.has(100)).toBe(true);
+    expect(used.has(101)).toBe(true);
+    expect(used.has(102)).toBe(false);
+  });
+
+  it('includes mastery effect stats in collectStats', () => {
+    const tree = makeTreeWithMasteries();
+    const spec = new PassiveSpec(tree, 0);
+    spec.allocate(20);
+    spec.setMasteryEffect(20, 100);
+    const stats = spec.collectStats();
+    expect(stats).toContain('+50 to maximum Life');
+  });
+
+  it('does not include mastery node base stats when effect is selected', () => {
+    const tree = makeTreeWithMasteries();
+    // Give the mastery node some base stats to verify they're skipped
+    tree.nodes[20].stats = ['base stat that should be ignored'];
+    const spec = new PassiveSpec(tree, 0);
+    spec.allocate(20);
+    spec.setMasteryEffect(20, 100);
+    const stats = spec.collectStats();
+    expect(stats).not.toContain('base stat that should be ignored');
+    expect(stats).toContain('+50 to maximum Life');
+  });
+
+  it('clears mastery selection when node is deallocated', () => {
+    const tree = makeTreeWithMasteries();
+    const spec = new PassiveSpec(tree, 0);
+    spec.allocate(20);
+    spec.setMasteryEffect(20, 100);
+    spec.deallocate(20);
+    expect(spec.getMasteryEffect(20)).toBeNull();
+  });
+
+  it('clears mastery selections on reset', () => {
+    const tree = makeTreeWithMasteries();
+    const spec = new PassiveSpec(tree, 0);
+    spec.allocate(20);
+    spec.setMasteryEffect(20, 100);
+    spec.reset();
+    expect(spec.getMasteryEffect(20)).toBeNull();
+  });
+});

@@ -79,6 +79,7 @@ export class TreeData {
         _icon: ndata.icon || null,
         _inactiveIcon: ndata.inactiveIcon || null,
         _activeIcon: ndata.activeIcon || null,
+        masteryEffects: ndata.masteryEffects || [],
         x: 0,
         y: 0,
       };

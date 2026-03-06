@@ -8,6 +8,7 @@ export class PassiveSpec {
     this.allocated = new Set();
     this.ascendancy = null;
     this.ascendancyAllocated = new Set();
+    this.masterySelections = new Map(); // nodeId → effectId
 
     // Allocate class start node
     const startNodeId = tree.classStarts[classId];
@@ -66,6 +67,7 @@ export class PassiveSpec {
     if (nodeId === startNodeId) return false;
 
     this.allocated.delete(nodeId);
+    this.masterySelections.delete(nodeId);
 
     // Find all nodes still reachable from class start
     const reachable = this._reachableFromStart();
@@ -74,6 +76,7 @@ export class PassiveSpec {
     for (const id of [...this.allocated]) {
       if (!reachable.has(id)) {
         this.allocated.delete(id);
+        this.masterySelections.delete(id);
       }
     }
 
@@ -161,7 +164,13 @@ export class PassiveSpec {
     const stats = [];
     for (const nodeId of this.allocated) {
       const node = this.tree.nodes[nodeId];
-      if (node && node.stats) {
+      if (!node) continue;
+      // For mastery nodes, use the selected effect's stats instead of node.stats
+      const effectId = this.masterySelections.get(nodeId);
+      if (node.type === 'mastery' && effectId != null) {
+        const effect = node.masteryEffects.find(e => e.effect === effectId);
+        if (effect) stats.push(...effect.stats);
+      } else if (node.stats) {
         stats.push(...node.stats);
       }
     }
@@ -172,6 +181,35 @@ export class PassiveSpec {
       }
     }
     return stats;
+  }
+
+  setMasteryEffect(nodeId, effectId) {
+    const node = this.tree.nodes[nodeId];
+    if (!node || node.type !== 'mastery') return false;
+    if (!this.isAllocated(nodeId)) return false;
+    const effect = node.masteryEffects.find(e => e.effect === effectId);
+    if (!effect) return false;
+    this.masterySelections.set(nodeId, effectId);
+    return true;
+  }
+
+  clearMasteryEffect(nodeId) {
+    return this.masterySelections.delete(nodeId);
+  }
+
+  getMasteryEffect(nodeId) {
+    return this.masterySelections.get(nodeId) ?? null;
+  }
+
+  getUsedEffectsForMasteryName(masteryName) {
+    const used = new Set();
+    for (const [nodeId, effectId] of this.masterySelections) {
+      const node = this.tree.nodes[nodeId];
+      if (node && node.name === masteryName) {
+        used.add(effectId);
+      }
+    }
+    return used;
   }
 
   setAscendancy(name) {
@@ -194,6 +232,7 @@ export class PassiveSpec {
   reset() {
     this.allocated.clear();
     this.ascendancyAllocated.clear();
+    this.masterySelections.clear();
     const startNodeId = this.tree.classStarts[this.classId];
     if (startNodeId !== undefined) {
       this.allocated.add(startNodeId);

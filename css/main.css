@@ -35,7 +35,7 @@ body {
 /* ─── App Grid ─── */
 #app {
   display: grid;
-  grid-template-rows: 38px 32px 1fr 22px;
+  grid-template-rows: 42px 32px 1fr 22px;
   grid-template-columns: 1fr 240px;
   grid-template-areas:
     "menu   menu"
@@ -75,19 +75,22 @@ body {
 }
 
 .class-select,
-.level-input {
+.level-input,
+.spec-select {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 3px;
   color: var(--text-primary);
-  padding: 2px 6px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: 13px;
   font-family: inherit;
+  height: 28px;
 }
 
-.class-select { min-width: 100px; }
-.level-input { width: 48px; text-align: center; }
-.level-label { color: var(--text-secondary); font-size: 12px; }
+.class-select { min-width: 110px; }
+.level-input { width: 52px; text-align: center; }
+.spec-select { min-width: 140px; }
+.level-label { color: var(--text-secondary); font-size: 13px; }
 
 /* ─── Tab Bar ─── */
 #tab-bar {
@@ -472,6 +475,13 @@ body {
 }
 
 .notes-textarea:focus { border-color: var(--accent); outline: none; }
+
+/* ─── Mastery Popup ─── */
+.mastery-effect-list { display: flex; flex-direction: column; gap: 2px; }
+.mastery-effect-item { padding: 6px 8px; cursor: pointer; border-radius: 3px; font-size: 12px; color: var(--text-primary); }
+.mastery-effect-item:hover { background: var(--bg-tertiary); }
+.mastery-effect-item.selected { background: var(--accent); color: #fff; }
+.mastery-effect-item.used { opacity: 0.4; pointer-events: none; }
 
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar { width: 8px; }

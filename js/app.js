@@ -33,6 +33,8 @@ class PoBApp {
     this.buildName = 'New Build';
     this.className = 'Scion';
     this.level = 1;
+    this.buildSpecs = [];
+    this.activeSpecIndex = 0;
 
     // Tree state
     this.treeData = null;
@@ -133,7 +135,11 @@ class PoBApp {
 
       this.treeInteraction.onNodeClick = (node) => {
         if (!node) return;
-        if (node.type === 'classStart' || node.type === 'mastery') return;
+        if (node.type === 'classStart') return;
+        if (node.type === 'mastery') {
+          this._onMasteryClick(node);
+          return;
+        }
         this.treeAllocation.toggleNode(node.id);
         this._rebuildTreeInstances();
         this._updateStatusBar();
@@ -288,7 +294,18 @@ class PoBApp {
     }
 
     const typeLabel = node.type !== 'normal' ? ` (${node.type})` : '';
-    const statsText = node.stats?.length ? '\n' + node.stats.join('\n') : '';
+    let statsText = '';
+    if (node.type === 'mastery' && this.treeAllocation) {
+      const effectId = this.treeAllocation.spec.getMasteryEffect(node.id);
+      if (effectId != null) {
+        const effect = node.masteryEffects.find(e => e.effect === effectId);
+        if (effect) statsText = '\n' + effect.stats.join('\n');
+      } else if (node.masteryEffects.length > 0) {
+        statsText = '\n(click to choose an effect)';
+      }
+    } else if (node.stats?.length) {
+      statsText = '\n' + node.stats.join('\n');
+    }
     tooltip.textContent = node.name + typeLabel + statsText;
     tooltip.style.display = 'block';
 
@@ -311,6 +328,99 @@ class PoBApp {
     tooltip.style.top = top + 'px';
   }
 
+  _onMasteryClick(node) {
+    if (!this.treeAllocation) return;
+    const spec = this.treeAllocation.spec;
+    // Must be adjacent to allocated nodes (or already allocated) to interact
+    const isAllocated = spec.isAllocated(node.id);
+    const isAdjacent = spec._isAdjacentToAllocated(node.id);
+    if (!isAllocated && !isAdjacent) return;
+    if (!node.masteryEffects || node.masteryEffects.length === 0) return;
+
+    this._showMasteryPopup(node);
+  }
+
+  _showMasteryPopup(node) {
+    const spec = this.treeAllocation.spec;
+    const currentEffect = spec.getMasteryEffect(node.id);
+    const usedEffects = spec.getUsedEffectsForMasteryName(node.name);
+
+    // Build modal
+    const overlay = document.createElement('div');
+    overlay.className = 'pob-modal-overlay';
+
+    let selectedEffect = currentEffect;
+
+    const effectListHtml = node.masteryEffects.map(eff => {
+      const isUsed = usedEffects.has(eff.effect) && eff.effect !== currentEffect;
+      const isSelected = eff.effect === currentEffect;
+      const cls = ['mastery-effect-item'];
+      if (isSelected) cls.push('selected');
+      if (isUsed) cls.push('used');
+      return `<div class="${cls.join(' ')}" data-effect="${eff.effect}"${isUsed ? ' title="Already used on another node"' : ''}>${eff.stats.join('; ')}</div>`;
+    }).join('');
+
+    overlay.innerHTML = `
+      <div class="pob-modal">
+        <div class="pob-modal-title">${node.name}</div>
+        <div class="mastery-effect-list">${effectListHtml}</div>
+        <div class="pob-modal-actions">
+          ${spec.isAllocated(node.id) ? '<button class="pob-btn mastery-remove-btn">Remove</button>' : ''}
+          <button class="pob-btn mastery-cancel-btn">Cancel</button>
+          <button class="pob-btn pob-btn-primary mastery-confirm-btn">Confirm</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const updateSelection = () => {
+      for (const item of overlay.querySelectorAll('.mastery-effect-item')) {
+        const eid = parseInt(item.dataset.effect, 10);
+        item.classList.toggle('selected', eid === selectedEffect);
+      }
+    };
+
+    // Click effect items
+    for (const item of overlay.querySelectorAll('.mastery-effect-item:not(.used)')) {
+      item.addEventListener('click', () => {
+        selectedEffect = parseInt(item.dataset.effect, 10);
+        updateSelection();
+      });
+    }
+
+    const close = () => overlay.remove();
+
+    // Cancel
+    overlay.querySelector('.mastery-cancel-btn').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+
+    // Remove
+    overlay.querySelector('.mastery-remove-btn')?.addEventListener('click', () => {
+      spec.clearMasteryEffect(node.id);
+      this.treeAllocation.deallocateNode(node.id);
+      this._rebuildTreeInstances();
+      this._updateStatusBar();
+      this._runCalc();
+      close();
+    });
+
+    // Confirm
+    overlay.querySelector('.mastery-confirm-btn').addEventListener('click', () => {
+      if (selectedEffect == null) { close(); return; }
+      if (!spec.isAllocated(node.id)) {
+        this.treeAllocation.allocateNode(node.id);
+      }
+      spec.setMasteryEffect(node.id, selectedEffect);
+      this._rebuildTreeInstances();
+      this._updateStatusBar();
+      this._runCalc();
+      close();
+    });
+  }
+
   _initMenuBar() {
     const menuBar = document.getElementById('menu-bar');
     if (!menuBar) return;
@@ -325,6 +435,7 @@ class PoBApp {
         <label class="level-label">Level:
           <input type="number" class="level-input" id="level-input" value="${this.level}" min="1" max="100">
         </label>
+        <span id="spec-dropdown-container"></span>
       </div>
       <div class="menu-right">
         <span class="menu-hint">PoBWeb — Path of Building for the Browser</span>
@@ -700,7 +811,7 @@ class PoBApp {
       const stats = this.treeAllocation.collectStats();
       for (const statLine of stats) {
         const mods = parseMod(statLine);
-        if (mods.length) modDB.addList(mods);
+        if (mods && mods.length) modDB.addList(mods);
       }
     }
 
@@ -720,6 +831,10 @@ class PoBApp {
   }
 
   _applyBuild(build) {
+    // Store specs for tree dropdown
+    this.buildSpecs = build.specs || [];
+    this.activeSpecIndex = build.activeSpec || 0;
+
     // Apply class
     if (build.className) {
       this.className = build.className;
@@ -734,32 +849,70 @@ class PoBApp {
       if (levelInput) levelInput.value = build.level;
     }
 
-    // Reset tree allocation for the new class
-    if (this.treeData) {
-      const classId = this.treeData.classNameToId(this.className);
-      this.treeAllocation = new TreeAllocation(this.treeData, classId >= 0 ? classId : 0);
+    // Apply tree nodes from the active spec
+    this._applySpecNodes(build.treeNodes || [], build.masteryEffects || []);
+    this._updateSpecDropdown();
+  }
 
-      // Allocate imported nodes
-      if (build.treeNodes?.length) {
-        for (const nodeId of build.treeNodes) {
-          if (this.treeData.nodes[nodeId]) {
-            this.treeAllocation.spec.allocated.add(nodeId);
-          }
-        }
+  _applySpecNodes(nodeIds, masteryEffects = []) {
+    if (!this.treeData) return;
+    const classId = this.treeData.classNameToId(this.className);
+    this.treeAllocation = new TreeAllocation(this.treeData, classId >= 0 ? classId : 0);
+
+    for (const nodeId of nodeIds) {
+      if (this.treeData.nodes[nodeId]) {
+        this.treeAllocation.spec.allocated.add(nodeId);
       }
     }
 
-    // Rebuild tree if on tree tab
+    // Apply mastery selections
+    for (const { nodeId, effectId } of masteryEffects) {
+      this.treeAllocation.spec.setMasteryEffect(nodeId, effectId);
+    }
+
     if (this.activeTab === 'Tree') {
       this._rebuildTreeInstances();
     }
-
     this._updateStatusBar();
     this._runCalc();
   }
 
+  _switchSpec(index) {
+    if (!this.buildSpecs || index < 0 || index >= this.buildSpecs.length) return;
+    this.activeSpecIndex = index;
+    const spec = this.buildSpecs[index];
+
+    // Update class from spec's classId
+    const classNames = ['Scion', 'Marauder', 'Ranger', 'Witch', 'Duelist', 'Templar', 'Shadow'];
+    const newClass = classNames[spec.classId] || this.className;
+    if (newClass !== this.className) {
+      this.className = newClass;
+      const classSelect = document.getElementById('class-select');
+      if (classSelect) classSelect.value = this.className;
+    }
+
+    this._applySpecNodes(spec.nodes, spec.masteryEffects || []);
+  }
+
+  _updateSpecDropdown() {
+    const container = document.getElementById('spec-dropdown-container');
+    if (!container) return;
+    if (!this.buildSpecs || this.buildSpecs.length <= 1) {
+      container.innerHTML = '';
+      return;
+    }
+    const options = this.buildSpecs.map((s, i) =>
+      `<option value="${i}"${i === this.activeSpecIndex ? ' selected' : ''}>${s.title}</option>`
+    ).join('');
+    container.innerHTML = `<select class="spec-select" id="spec-select">${options}</select>`;
+    document.getElementById('spec-select')?.addEventListener('change', (e) => {
+      this._switchSpec(parseInt(e.target.value, 10));
+    });
+  }
+
   _buildCurrentBuild() {
     const nodeIds = [];
+    const masteryEffects = [];
     if (this.treeAllocation) {
       for (const id of this.treeAllocation.spec.allocated) {
         // Skip the class start node from the export
@@ -768,6 +921,9 @@ class PoBApp {
           nodeIds.push(id);
         }
       }
+      for (const [nodeId, effectId] of this.treeAllocation.spec.masterySelections) {
+        masteryEffects.push({ nodeId, effectId });
+      }
     }
 
     return new Build({
@@ -775,6 +931,7 @@ class PoBApp {
       className: this.className,
       level: this.level,
       treeNodes: nodeIds,
+      masteryEffects,
     });
   }
 }

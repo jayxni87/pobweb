@@ -15,6 +15,7 @@ const FRAME_MAP = {
   notable:   { unallocated: 'NotableFrameUnallocated', allocated: 'NotableFrameAllocated', highlighted: 'NotableFrameCanAllocate' },
   keystone:  { unallocated: 'KeystoneFrameUnallocated',allocated: 'KeystoneFrameAllocated',highlighted: 'KeystoneFrameCanAllocate' },
   jewel:     { unallocated: 'JewelFrameUnallocated',   allocated: 'JewelFrameAllocated',   highlighted: 'JewelFrameCanAllocate' },
+  mastery:   { allocated: 'NotableFrameAllocated',      highlighted: 'NotableFrameCanAllocate' },
 };
 
 // Icon category for node type + state
@@ -78,12 +79,15 @@ export class SpriteData {
     return this.getSpriteUV(category, iconPath);
   }
 
-  // Get mastery icon UV (uses separate sheets)
-  getMasteryIconUV(iconPath, allocated) {
-    if (allocated) {
-      return this.getSpriteUV('mastery', iconPath);
+  // Get mastery icon UV (uses separate sheets per state)
+  // state: 'inactive' | 'connected' | 'activeSelected'
+  getMasteryIconUV(iconPath, state = 'inactive') {
+    if (state === 'activeSelected') {
+      return this.getSpriteUV('masteryActiveSelected', iconPath);
     }
-    // For inactive mastery, use the inactiveIcon path with masteryInactive category
+    if (state === 'connected') {
+      return this.getSpriteUV('masteryConnected', iconPath);
+    }
     return this.getSpriteUV('masteryInactive', iconPath);
   }
 
@@ -95,6 +99,8 @@ export class SpriteData {
       skillsInactive: this.getSheetPath('normalInactive'),
       mastery: this.getSheetPath('mastery'),
       masteryInactive: this.getSheetPath('masteryInactive'),
+      masteryConnected: this.getSheetPath('masteryConnected'),
+      masteryActiveSelected: this.getSheetPath('masteryActiveSelected'),
       ascendancy: this.getSheetPath('ascendancy'),
       groupBackground: this.getSheetPath('groupBackground'),
     };

@@ -74,8 +74,8 @@ export const NODE_COLORS = {
 };
 
 export const CONNECTION_COLORS = {
-  inactive: [0.3, 0.3, 0.3, 0.6],
-  active: [0.85, 0.7, 0.2, 1.0],
+  inactive: [0.25, 0.2, 0.1, 0.6],
+  active: [0.85, 0.65, 0.1, 1.0],
   path: [0.3, 0.8, 0.3, 0.8],
 };
 
@@ -623,7 +623,9 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
   const frameInstances = [];
   const unallocatedIcons = [];
   const allocatedIcons = [];
-  const masteryIcons = [];
+  const masteryInactiveIcons = [];
+  const masteryConnectedIcons = [];
+  const masteryActiveIcons = [];
 
   const searchActive = highlighted && highlighted.size > 0;
 
@@ -636,31 +638,50 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
     const dimAlpha = dimmed ? 0.2 : 1;
 
     // Frame
-    const frameState = isHighlighted ? 'highlighted' : (allocated ? 'allocated' : 'unallocated');
-    const frameUV = spriteData.getFrameUV(node.type, frameState);
-    if (frameUV) {
-      frameInstances.push({
-        x: node.x,
-        y: node.y,
-        size: frameSizes[node.type] || 39,
-        spriteRect: frameUV,
-        color: [1, 1, 1, dimAlpha],
-      });
+    const hasMasteryEffect = node.type === 'mastery' && spec && spec.masterySelections?.get(node.id) != null;
+    // Mastery nodes only get a frame when they have an effect selected
+    if (node.type !== 'mastery' || hasMasteryEffect) {
+      const frameState = isHighlighted ? 'highlighted' : (allocated ? 'allocated' : 'unallocated');
+      const frameUV = spriteData.getFrameUV(node.type, frameState);
+      if (frameUV) {
+        // Gold tint for active mastery frame
+        const frameColor = hasMasteryEffect
+          ? [1.0, 0.85, 0.4, dimAlpha]
+          : [1, 1, 1, dimAlpha];
+        frameInstances.push({
+          x: node.x,
+          y: node.y,
+          size: frameSizes[node.type] || 39,
+          spriteRect: frameUV,
+          color: frameColor,
+        });
+      }
     }
 
     // Icon
     if (node.type === 'mastery') {
-      const icon = node._inactiveIcon || node._icon;
+      let masteryState, icon;
+      if (allocated && hasMasteryEffect) {
+        masteryState = 'activeSelected';
+        icon = node._activeIcon || node._inactiveIcon || node._icon;
+      } else if (allocated) {
+        masteryState = 'connected';
+        icon = node._inactiveIcon || node._icon;
+      } else {
+        masteryState = 'inactive';
+        icon = node._inactiveIcon || node._icon;
+      }
       if (icon) {
-        const uv = spriteData.getMasteryIconUV(icon, allocated);
+        const uv = spriteData.getMasteryIconUV(icon, masteryState);
         if (uv) {
-          masteryIcons.push({
-            x: node.x,
-            y: node.y,
-            size: iconSizes.mastery,
-            spriteRect: uv,
-            color: [1, 1, 1, dimmed ? 0.15 : (allocated ? 1 : 0.6)],
-          });
+          // Gold tint for active mastery with a selected effect
+          const color = (allocated && hasMasteryEffect)
+            ? [1.0, 0.85, 0.4, dimmed ? 0.15 : 1]
+            : [1, 1, 1, dimmed ? 0.15 : (allocated ? 1 : 0.6)];
+          const inst = { x: node.x, y: node.y, size: iconSizes.mastery, spriteRect: uv, color };
+          if (masteryState === 'activeSelected') masteryActiveIcons.push(inst);
+          else if (masteryState === 'connected') masteryConnectedIcons.push(inst);
+          else masteryInactiveIcons.push(inst);
         }
       }
     } else if (node.type === 'classStart' || node.type === 'ascendancyStart' || node.type === 'jewel') {
@@ -689,8 +710,14 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
     { textureUrl: 'assets/tree/skills-3.jpg', instances: allocatedIcons, circleClip: true },
   ];
 
-  if (masteryIcons.length > 0) {
-    layers.push({ textureUrl: 'assets/tree/mastery-disabled-3.png', instances: masteryIcons, circleClip: true });
+  if (masteryInactiveIcons.length > 0) {
+    layers.push({ textureUrl: 'assets/tree/mastery-disabled-3.png', instances: masteryInactiveIcons, circleClip: true });
+  }
+  if (masteryConnectedIcons.length > 0) {
+    layers.push({ textureUrl: 'assets/tree/mastery-connected-3.png', instances: masteryConnectedIcons, circleClip: true });
+  }
+  if (masteryActiveIcons.length > 0) {
+    layers.push({ textureUrl: 'assets/tree/mastery-active-selected-3.png', instances: masteryActiveIcons, circleClip: true });
   }
 
   return layers;
@@ -752,6 +779,10 @@ export function buildConnectionInstances(treeData, spec, options = {}) {
       const adjNode = treeData.nodes[adjId];
       if (!adjNode) continue;
 
+      // Hide connections to classStart and mastery nodes
+      if (node.type === 'classStart' || adjNode.type === 'classStart') continue;
+      if (node.type === 'mastery' || adjNode.type === 'mastery') continue;
+
       // Hide connections between ascendancy sub-trees and the main tree
       const nodeIsAsc = !!(node.ascendancy || node.type === 'ascendancyStart');
       const adjIsAsc = !!(adjNode.ascendancy || adjNode.type === 'ascendancyStart');
@@ -763,7 +794,7 @@ export function buildConnectionInstances(treeData, spec, options = {}) {
       connections.push({
         x1: node.x, y1: node.y,
         x2: adjNode.x, y2: adjNode.y,
-        width: bothAllocated ? 6 : 4,
+        width: bothAllocated ? 8 : 5,
         color,
       });
     }

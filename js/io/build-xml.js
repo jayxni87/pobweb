@@ -8,6 +8,9 @@ export class Build {
     this.level = opts.level !== undefined ? opts.level : 1;
     this.ascendancy = opts.ascendancy !== undefined ? opts.ascendancy : '';
     this.treeNodes = opts.treeNodes || [];
+    this.masteryEffects = opts.masteryEffects || []; // [{nodeId, effectId}]
+    this.specs = opts.specs || [];       // [{title, classId, ascendClassId, treeVersion, nodes, masteryEffects}]
+    this.activeSpec = opts.activeSpec || 0; // 0-indexed
     this.skills = opts.skills || [];
     this.items = opts.items || [];
     this.config = opts.config || {};
@@ -39,7 +42,11 @@ export function buildToXml(build) {
   if (build.treeNodes.length > 0) {
     const classNames = ['Scion', 'Marauder', 'Ranger', 'Witch', 'Duelist', 'Templar', 'Shadow'];
     const classId = classNames.indexOf(build.className);
-    xml += `    <Spec treeVersion="3_25" classId="${classId >= 0 ? classId : 0}" ascendClassId="0" nodes="${build.treeNodes.join(',')}">\n`;
+    let masteryAttr = '';
+    if (build.masteryEffects && build.masteryEffects.length > 0) {
+      masteryAttr = ` masteryEffects="${build.masteryEffects.map(m => `{${m.nodeId},${m.effectId}}`).join(',')}"`;
+    }
+    xml += `    <Spec treeVersion="3_25" classId="${classId >= 0 ? classId : 0}" ascendClassId="0" nodes="${build.treeNodes.join(',')}"${masteryAttr}>\n`;
     xml += '    </Spec>\n';
   }
   xml += '  </Tree>\n';
@@ -109,21 +116,40 @@ function parseXmlSimple(xml) {
     build.name = extractAttr(attrs, 'buildName') || '';
   }
 
-  // Tree nodes - extract from <Spec ... nodes="..."> with any attribute order
-  const specMatch = xml.match(/<Spec\s+([^>]*)/);
-  if (specMatch) {
+  // Parse activeSpec from <Tree activeSpec="...">
+  const treeMatch = xml.match(/<Tree\s+([^>]*)>/);
+  const activeSpecStr = treeMatch ? extractAttr(treeMatch[1], 'activeSpec') : null;
+  const activeSpecIdx = activeSpecStr ? parseInt(activeSpecStr, 10) - 1 : 0;
+
+  // Parse all <Spec> elements
+  const classNames = ['Scion', 'Marauder', 'Ranger', 'Witch', 'Duelist', 'Templar', 'Shadow'];
+  const specRegex = /<Spec\s+([^>]*)(?:\/>|>[\s\S]*?<\/Spec>)/g;
+  let specIdx = 0;
+  let specMatch;
+  while ((specMatch = specRegex.exec(xml)) !== null) {
     const specAttrs = specMatch[1];
-    const nodesStr = extractAttr(specAttrs, 'nodes');
-    if (nodesStr) {
-      build.treeNodes = nodesStr.split(',').map(Number).filter(n => !isNaN(n));
-    }
-    // Use classId from Spec as fallback if Build didn't have className
+    const nodesStr = extractAttr(specAttrs, 'nodes') || '';
+    const nodes = nodesStr ? nodesStr.split(',').map(Number).filter(n => !isNaN(n)) : [];
+    const classId = parseInt(extractAttr(specAttrs, 'classId') || '0', 10);
+    build.specs.push({
+      title: extractAttr(specAttrs, 'title') || `Tree ${specIdx + 1}`,
+      classId,
+      ascendClassId: parseInt(extractAttr(specAttrs, 'ascendClassId') || '0', 10),
+      treeVersion: extractAttr(specAttrs, 'treeVersion') || '',
+      nodes,
+      masteryEffects: parseMasteryEffectsAttr(extractAttr(specAttrs, 'masteryEffects')),
+    });
+    specIdx++;
+  }
+
+  // Set active spec and apply its nodes
+  build.activeSpec = Math.min(activeSpecIdx, Math.max(0, build.specs.length - 1));
+  if (build.specs.length > 0) {
+    const active = build.specs[build.activeSpec];
+    build.treeNodes = active.nodes;
+    build.masteryEffects = active.masteryEffects || [];
     if (!build.className) {
-      const classId = extractAttr(specAttrs, 'classId');
-      if (classId !== null) {
-        const classNames = ['Scion', 'Marauder', 'Ranger', 'Witch', 'Duelist', 'Templar', 'Shadow'];
-        build.className = classNames[parseInt(classId, 10)] || 'Scion';
-      }
+      build.className = classNames[active.classId] || 'Scion';
     }
   }
 
@@ -167,6 +193,17 @@ function parseXmlSimple(xml) {
   return build;
 }
 
+function parseMasteryEffectsAttr(str) {
+  if (!str) return [];
+  const effects = [];
+  const re = /\{(\d+),(\d+)\}/g;
+  let m;
+  while ((m = re.exec(str)) !== null) {
+    effects.push({ nodeId: parseInt(m[1], 10), effectId: parseInt(m[2], 10) });
+  }
+  return effects;
+}
+
 function extractAttr(attrStr, name) {
   const match = attrStr.match(new RegExp(`${name}="([^"]*)"`));
   return match ? unescapeXml(match[1]) : null;
@@ -183,6 +220,7 @@ function unescapeXml(str) {
 
 // Parse from DOM document
 function parseDom(doc) {
+  const classNames = ['Scion', 'Marauder', 'Ranger', 'Witch', 'Duelist', 'Templar', 'Shadow'];
   const build = new Build({ name: '', className: '', level: 1 });
 
   const buildEl = doc.querySelector('Build');
@@ -193,11 +231,34 @@ function parseDom(doc) {
     build.name = buildEl.getAttribute('buildName') || '';
   }
 
-  const specEl = doc.querySelector('Spec');
-  if (specEl) {
-    const nodes = specEl.getAttribute('nodes');
-    if (nodes) {
-      build.treeNodes = nodes.split(',').map(Number).filter(n => !isNaN(n));
+  // Parse all Spec elements from the Tree section
+  const treeEl = doc.querySelector('Tree');
+  const activeSpecAttr = treeEl?.getAttribute('activeSpec');
+  const activeSpecIdx = activeSpecAttr ? parseInt(activeSpecAttr, 10) - 1 : 0; // convert 1-indexed to 0-indexed
+
+  const specEls = doc.querySelectorAll('Spec');
+  specEls.forEach((specEl, i) => {
+    const nodesStr = specEl.getAttribute('nodes') || '';
+    const nodes = nodesStr ? nodesStr.split(',').map(Number).filter(n => !isNaN(n)) : [];
+    const classId = parseInt(specEl.getAttribute('classId') || '0', 10);
+    build.specs.push({
+      title: specEl.getAttribute('title') || `Tree ${i + 1}`,
+      classId,
+      ascendClassId: parseInt(specEl.getAttribute('ascendClassId') || '0', 10),
+      treeVersion: specEl.getAttribute('treeVersion') || '',
+      nodes,
+      masteryEffects: parseMasteryEffectsAttr(specEl.getAttribute('masteryEffects')),
+    });
+  });
+
+  // Set active spec and apply its nodes
+  build.activeSpec = Math.min(activeSpecIdx, Math.max(0, build.specs.length - 1));
+  if (build.specs.length > 0) {
+    const active = build.specs[build.activeSpec];
+    build.treeNodes = active.nodes;
+    build.masteryEffects = active.masteryEffects || [];
+    if (!build.className && active.classId !== undefined) {
+      build.className = classNames[active.classId] || 'Scion';
     }
   }
 
