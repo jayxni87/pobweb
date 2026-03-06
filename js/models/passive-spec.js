@@ -9,6 +9,8 @@ export class PassiveSpec {
     this.ascendancy = null;
     this.ascendancyAllocated = new Set();
     this.masterySelections = new Map(); // nodeId → effectId
+    this.jewels = new Map();       // socketNodeId → parsed cluster jewel data
+    this.subGraphs = new Map();    // subgraphId → { nodes[], parentSocketId, entranceNodeId }
 
     // Build set of valid ascendancy names for this class
     this._classAscendancies = new Set();
@@ -271,7 +273,75 @@ export class PassiveSpec {
     return this.ascendancyAllocated.delete(nodeId);
   }
 
+  _applySubgraph(socketNodeId, subgraph) {
+    // Add each node in the subgraph to the tree
+    for (const node of subgraph.nodes) {
+      this.tree.nodes[node.id] = node;
+    }
+    // Add the entrance node ID to the parent socket's adjacent array if not already present
+    const parentSocket = this.tree.nodes[socketNodeId];
+    if (parentSocket && !parentSocket.adjacent.includes(subgraph.entranceNodeId)) {
+      parentSocket.adjacent.push(subgraph.entranceNodeId);
+    }
+    // Store in subGraphs
+    this.subGraphs.set(subgraph.id, {
+      nodes: subgraph.nodes,
+      parentSocketId: socketNodeId,
+      entranceNodeId: subgraph.entranceNodeId,
+    });
+  }
+
+  _removeSubgraph(socketNodeId) {
+    // Find the subgraph that has parentSocketId === socketNodeId
+    let subgraphId = null;
+    let subgraphData = null;
+    for (const [id, data] of this.subGraphs) {
+      if (data.parentSocketId === socketNodeId) {
+        subgraphId = id;
+        subgraphData = data;
+        break;
+      }
+    }
+    if (!subgraphData) return;
+
+    // Deallocate all its nodes
+    for (const node of subgraphData.nodes) {
+      this.allocated.delete(node.id);
+      this.masterySelections.delete(node.id);
+    }
+    // Delete nodes from tree
+    for (const node of subgraphData.nodes) {
+      delete this.tree.nodes[node.id];
+    }
+    // Remove entrance node ID from parent socket's adjacent array
+    const parentSocket = this.tree.nodes[socketNodeId];
+    if (parentSocket) {
+      const idx = parentSocket.adjacent.indexOf(subgraphData.entranceNodeId);
+      if (idx !== -1) {
+        parentSocket.adjacent.splice(idx, 1);
+      }
+    }
+    // Delete from subGraphs
+    this.subGraphs.delete(subgraphId);
+  }
+
   reset() {
+    // Clean up subgraphs before clearing: remove their nodes from tree and restore adjacency
+    for (const [, data] of this.subGraphs) {
+      for (const node of data.nodes) {
+        delete this.tree.nodes[node.id];
+      }
+      const parentSocket = this.tree.nodes[data.parentSocketId];
+      if (parentSocket) {
+        const idx = parentSocket.adjacent.indexOf(data.entranceNodeId);
+        if (idx !== -1) {
+          parentSocket.adjacent.splice(idx, 1);
+        }
+      }
+    }
+    this.jewels.clear();
+    this.subGraphs.clear();
+
     this.allocated.clear();
     this.ascendancyAllocated.clear();
     this.masterySelections.clear();

@@ -362,3 +362,136 @@ describe('ascendancy pathing restrictions', () => {
     expect(path).toBeNull();
   });
 });
+
+describe('PassiveSpec cluster jewels', () => {
+  function makeTreeWithJewelSocket() {
+    return {
+      nodes: {
+        1: { id: 1, name: 'Start', type: 'classStart', stats: [], adjacent: [2], masteryEffects: [] },
+        2: { id: 2, name: 'Path', type: 'normal', stats: [], adjacent: [1, 100], masteryEffects: [] },
+        100: { id: 100, name: 'Large Jewel Socket', type: 'jewel', stats: [], adjacent: [2],
+          masteryEffects: [],
+          expansionJewel: { size: 2, index: 0, proxy: '500' },
+        },
+      },
+      classStarts: { 0: 1 },
+      _classes: [{ name: 'Scion', ascendancies: [] }],
+      groups: { '500': { x: 1000, y: 1000 } },
+      clusterNodeMap: new Map(),
+    };
+  }
+
+  it('tracks equipped jewels', () => {
+    const tree = makeTreeWithJewelSocket();
+    const spec = new PassiveSpec(tree, 0);
+    expect(spec.jewels.size).toBe(0);
+    spec.jewels.set(100, { baseName: 'Large Cluster Jewel' });
+    expect(spec.jewels.has(100)).toBe(true);
+  });
+
+  it('tracks subgraphs', () => {
+    const tree = makeTreeWithJewelSocket();
+    const spec = new PassiveSpec(tree, 0);
+    expect(spec.subGraphs.size).toBe(0);
+  });
+
+  it('_applySubgraph stores jewel and creates subgraph nodes in tree', () => {
+    const tree = makeTreeWithJewelSocket();
+    const spec = new PassiveSpec(tree, 0);
+
+    const subgraph = {
+      id: 0x10020,
+      nodes: [
+        { id: 0x10020, name: 'Small', type: 'normal', stats: ['10% fire'], adjacent: [0x10021, 100], masteryEffects: [] },
+        { id: 0x10021, name: 'Notable', type: 'notable', stats: ['big fire'], adjacent: [0x10020], masteryEffects: [] },
+      ],
+      parentSocketId: 100,
+      entranceNodeId: 0x10020,
+    };
+
+    spec._applySubgraph(100, subgraph);
+    expect(spec.subGraphs.has(0x10020)).toBe(true);
+    expect(tree.nodes[0x10020]).toBeDefined();
+    expect(tree.nodes[0x10021]).toBeDefined();
+    expect(tree.nodes[100].adjacent).toContain(0x10020);
+  });
+
+  it('_removeSubgraph removes subgraph nodes and restores tree', () => {
+    const tree = makeTreeWithJewelSocket();
+    const spec = new PassiveSpec(tree, 0);
+
+    const subgraph = {
+      id: 0x10020,
+      nodes: [
+        { id: 0x10020, name: 'Small', type: 'normal', stats: ['10% fire'], adjacent: [0x10021, 100], masteryEffects: [] },
+        { id: 0x10021, name: 'Notable', type: 'notable', stats: ['big fire'], adjacent: [0x10020], masteryEffects: [] },
+      ],
+      parentSocketId: 100,
+      entranceNodeId: 0x10020,
+    };
+
+    spec._applySubgraph(100, subgraph);
+    spec._removeSubgraph(100);
+
+    expect(spec.subGraphs.has(0x10020)).toBe(false);
+    expect(tree.nodes[0x10020]).toBeUndefined();
+    expect(tree.nodes[0x10021]).toBeUndefined();
+    expect(tree.nodes[100].adjacent).not.toContain(0x10020);
+  });
+
+  it('subgraph nodes participate in allocation and stats', () => {
+    const tree = makeTreeWithJewelSocket();
+    const spec = new PassiveSpec(tree, 0);
+
+    const subgraph = {
+      id: 0x10020,
+      nodes: [
+        { id: 0x10020, name: 'Small', type: 'normal', stats: ['10% fire'], adjacent: [0x10021, 100], masteryEffects: [] },
+        { id: 0x10021, name: 'Notable', type: 'notable', stats: ['big fire'], adjacent: [0x10020], masteryEffects: [] },
+      ],
+      parentSocketId: 100,
+      entranceNodeId: 0x10020,
+    };
+
+    spec._applySubgraph(100, subgraph);
+    spec.allocate(2);
+    spec.allocate(100);
+    spec.allocate(0x10020);
+    spec.allocate(0x10021);
+
+    expect(spec.isAllocated(0x10020)).toBe(true);
+    expect(spec.isAllocated(0x10021)).toBe(true);
+
+    const stats = spec.collectStats();
+    expect(stats).toContain('10% fire');
+    expect(stats).toContain('big fire');
+  });
+
+  it('reset clears subgraphs and restores tree', () => {
+    const tree = makeTreeWithJewelSocket();
+    const spec = new PassiveSpec(tree, 0);
+
+    const subgraph = {
+      id: 0x10020,
+      nodes: [
+        { id: 0x10020, name: 'Small', type: 'normal', stats: ['10% fire'], adjacent: [0x10021, 100], masteryEffects: [] },
+        { id: 0x10021, name: 'Notable', type: 'notable', stats: ['big fire'], adjacent: [0x10020], masteryEffects: [] },
+      ],
+      parentSocketId: 100,
+      entranceNodeId: 0x10020,
+    };
+
+    spec._applySubgraph(100, subgraph);
+    spec.jewels.set(100, { baseName: 'Large Cluster Jewel' });
+    spec.allocate(2);
+    spec.allocate(100);
+    spec.allocate(0x10020);
+
+    spec.reset();
+
+    expect(spec.jewels.size).toBe(0);
+    expect(spec.subGraphs.size).toBe(0);
+    expect(tree.nodes[0x10020]).toBeUndefined();
+    expect(tree.nodes[100].adjacent).not.toContain(0x10020);
+  });
+});
