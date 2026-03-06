@@ -1,5 +1,9 @@
 node_modules/
-js/data/
+js/data/*
+!js/data/tree/
+js/data/tree/*
+!js/data/tree/3_25.json
+!js/data/tree/sprites.json
 dist/
 PathOfBuilding/
 .claude/
