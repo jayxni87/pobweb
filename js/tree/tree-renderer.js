@@ -7,7 +7,7 @@ precision highp float;
 layout(location = 0) in vec2 a_position;
 layout(location = 1) in vec2 a_texCoord;
 layout(location = 2) in vec2 a_offset;
-layout(location = 3) in float a_size;
+layout(location = 3) in vec2 a_size;
 layout(location = 4) in vec4 a_spriteRect;
 layout(location = 5) in vec4 a_color;
 uniform mat4 u_viewProjection;
@@ -15,7 +15,7 @@ out vec2 v_texCoord;
 out vec2 v_localUV;
 out vec4 v_color;
 void main() {
-  vec2 worldPos = a_offset + a_position * a_size;
+  vec2 worldPos = a_offset + a_position * a_size; // a_size.x = width, a_size.y = height
   gl_Position = u_viewProjection * vec4(worldPos, 0.0, 1.0);
   v_texCoord = a_spriteRect.xy + a_texCoord * a_spriteRect.zw;
   v_localUV = a_texCoord;
@@ -97,6 +97,9 @@ export class TreeRenderer {
 
     // Node layers: array of { texture, vao, instanceBuffer, instanceCount }
     this.nodeLayers = [];
+
+    // Background layers (rendered before connections)
+    this.backgroundLayers = [];
 
     // Texture cache: url -> WebGLTexture
     this._textures = new Map();
@@ -198,39 +201,40 @@ export class TreeRenderer {
   // Upload instance data to a node layer VAO
   _uploadNodeInstances(vao, instanceBuffer, instances) {
     const gl = this.gl;
-    const data = new Float32Array(instances.length * 11);
+    const data = new Float32Array(instances.length * 12);
     for (let i = 0; i < instances.length; i++) {
       const inst = instances[i];
-      const o = i * 11;
+      const o = i * 12;
       data[o + 0] = inst.x;
       data[o + 1] = inst.y;
-      data[o + 2] = inst.size;
-      data[o + 3] = inst.spriteRect?.[0] ?? 0;
-      data[o + 4] = inst.spriteRect?.[1] ?? 0;
-      data[o + 5] = inst.spriteRect?.[2] ?? 1;
-      data[o + 6] = inst.spriteRect?.[3] ?? 1;
-      data[o + 7] = inst.color?.[0] ?? 1;
-      data[o + 8] = inst.color?.[1] ?? 1;
-      data[o + 9] = inst.color?.[2] ?? 1;
-      data[o + 10] = inst.color?.[3] ?? 1;
+      data[o + 2] = inst.width ?? inst.size;
+      data[o + 3] = inst.height ?? inst.size;
+      data[o + 4] = inst.spriteRect?.[0] ?? 0;
+      data[o + 5] = inst.spriteRect?.[1] ?? 0;
+      data[o + 6] = inst.spriteRect?.[2] ?? 1;
+      data[o + 7] = inst.spriteRect?.[3] ?? 1;
+      data[o + 8] = inst.color?.[0] ?? 1;
+      data[o + 9] = inst.color?.[1] ?? 1;
+      data[o + 10] = inst.color?.[2] ?? 1;
+      data[o + 11] = inst.color?.[3] ?? 1;
     }
 
     gl.bindVertexArray(vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
 
-    const stride = 44;
+    const stride = 48;
     gl.enableVertexAttribArray(2);
     gl.vertexAttribPointer(2, 2, gl.FLOAT, false, stride, 0);
     gl.vertexAttribDivisor(2, 1);
     gl.enableVertexAttribArray(3);
-    gl.vertexAttribPointer(3, 1, gl.FLOAT, false, stride, 8);
+    gl.vertexAttribPointer(3, 2, gl.FLOAT, false, stride, 8);
     gl.vertexAttribDivisor(3, 1);
     gl.enableVertexAttribArray(4);
-    gl.vertexAttribPointer(4, 4, gl.FLOAT, false, stride, 12);
+    gl.vertexAttribPointer(4, 4, gl.FLOAT, false, stride, 16);
     gl.vertexAttribDivisor(4, 1);
     gl.enableVertexAttribArray(5);
-    gl.vertexAttribPointer(5, 4, gl.FLOAT, false, stride, 28);
+    gl.vertexAttribPointer(5, 4, gl.FLOAT, false, stride, 32);
     gl.vertexAttribDivisor(5, 1);
 
     gl.bindVertexArray(null);
@@ -301,6 +305,29 @@ export class TreeRenderer {
       });
     }
 
+    this.dirty = true;
+  }
+
+  // Set background layers (rendered before connections)
+  setBackgroundLayers(layers) {
+    const gl = this.gl;
+    for (const layer of this.backgroundLayers) {
+      gl.deleteVertexArray(layer.vao);
+      gl.deleteBuffer(layer.instanceBuffer);
+    }
+    this.backgroundLayers = [];
+    for (const layerDef of layers) {
+      if (!layerDef.instances.length) continue;
+      const { vao, instanceBuffer } = this._createNodeLayerVAO();
+      this._uploadNodeInstances(vao, instanceBuffer, layerDef.instances);
+      const texture = this._textures.get(layerDef.textureUrl) || this._textures.get('__fallback__');
+      this.backgroundLayers.push({
+        vao, instanceBuffer,
+        instanceCount: layerDef.instances.length,
+        texture,
+        circleClip: !!layerDef.circleClip,
+      });
+    }
     this.dirty = true;
   }
 
@@ -395,6 +422,23 @@ export class TreeRenderer {
 
     const vp = this._buildViewProjection();
 
+    // Layer 0: Background art (before connections)
+    if (this.backgroundLayers.length > 0) {
+      gl.useProgram(this.nodeProgram);
+      gl.uniformMatrix4fv(gl.getUniformLocation(this.nodeProgram, 'u_viewProjection'), false, vp);
+      const atlasLoc = gl.getUniformLocation(this.nodeProgram, 'u_atlas');
+      const clipLoc = gl.getUniformLocation(this.nodeProgram, 'u_circleClip');
+      for (const layer of this.backgroundLayers) {
+        if (!layer.texture || layer.instanceCount === 0) continue;
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, layer.texture);
+        gl.uniform1i(atlasLoc, 0);
+        gl.uniform1f(clipLoc, layer.circleClip ? 1.0 : 0.0);
+        gl.bindVertexArray(layer.vao);
+        gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, layer.instanceCount);
+      }
+    }
+
     // Layer 1: Connections
     if (this.connInstanceCount > 0) {
       gl.useProgram(this.connProgram);
@@ -446,10 +490,126 @@ export class TreeRenderer {
       gl.deleteVertexArray(layer.vao);
       gl.deleteBuffer(layer.instanceBuffer);
     }
+    for (const layer of this.backgroundLayers) {
+      gl.deleteVertexArray(layer.vao);
+      gl.deleteBuffer(layer.instanceBuffer);
+    }
     for (const tex of this._textures.values()) {
       gl.deleteTexture(tex);
     }
   }
+}
+
+// Class start portrait art names (classStartIndex → sprite name in startNode category)
+const CLASS_START_ART = {
+  0: 'centerscion',
+  1: 'centermarauder',
+  2: 'centerranger',
+  3: 'centerwitch',
+  4: 'centerduelist',
+  5: 'centertemplar',
+  6: 'centershadow',
+};
+
+// Class background illustration positions and sizes (from PoB PassiveTreeView.lua)
+// Image pixels at 0.3835 scale → world size = pixels * 2.66
+const CLASS_BACKGROUNDS = {
+  1: { image: 'assets/tree/class-art/BackgroundStr.png', x: -2750, y: 1600, w: 2689, h: 3213 },
+  2: { image: 'assets/tree/class-art/BackgroundDex.png', x: 2550, y: 1600, w: 2093, h: 2955 },
+  3: { image: 'assets/tree/class-art/BackgroundInt.png', x: -250, y: -2200, w: 2615, h: 2290 },
+  4: { image: 'assets/tree/class-art/BackgroundStrDex.png', x: -150, y: 2350, w: 3689, h: 2264 },
+  5: { image: 'assets/tree/class-art/BackgroundStrInt.png', x: -2100, y: -1500, w: 2399, h: 2910 },
+  6: { image: 'assets/tree/class-art/BackgroundDexInt.png', x: 2350, y: -1950, w: 2357, h: 3194 },
+};
+
+// World-space sizes for group backgrounds (sprite pixel size * 2.66)
+const GROUP_BG_SIZES = {
+  PSGroupBackground1: { w: 367, h: 367 },   // 138×138 → square
+  PSGroupBackground2: { w: 473, h: 473 },   // 178×178 → square
+  PSGroupBackground3: { w: 753, h: 380 },   // 283×143 → half-circle
+};
+
+// Build background layers (class illustration + class start portraits + group backgrounds)
+export function buildBackgroundLayers(treeData, spriteData, classId) {
+  const layers = [];
+
+  // Large class background illustration (only for selected class)
+  const bg = CLASS_BACKGROUNDS[classId];
+  if (bg) {
+    layers.push({
+      textureUrl: bg.image,
+      instances: [{
+        x: bg.x, y: bg.y,
+        width: bg.w, height: bg.h,
+        spriteRect: [0, 0, 1, 1],
+        color: [1, 1, 1, 0.6],
+      }],
+    });
+  }
+
+  // Group backgrounds + class start portraits share the group-background-3.png sheet
+  const gbInstances = [];
+
+  // Group background circles behind node clusters
+  for (const group of Object.values(treeData.groups)) {
+    if (!group.background) continue;
+    const spriteName = group.background.image;
+    const uv = spriteData.getSpriteUV('groupBackground', spriteName);
+    if (!uv) continue;
+    const dims = GROUP_BG_SIZES[spriteName];
+    if (!dims) continue;
+
+    if (group.background.isHalfImage) {
+      // Half-image: draw top half normally, bottom half with V-flipped UVs
+      const halfH = dims.h / 2;
+      // Top half: centered above group center
+      gbInstances.push({
+        x: group.x, y: group.y - halfH,
+        width: dims.w, height: dims.h,
+        spriteRect: uv,
+        color: [1, 1, 1, 0.7],
+      });
+      // Bottom half: centered below group center, vertically flipped
+      gbInstances.push({
+        x: group.x, y: group.y + halfH,
+        width: dims.w, height: dims.h,
+        spriteRect: [uv[0], uv[1] + uv[3], uv[2], -uv[3]],
+        color: [1, 1, 1, 0.7],
+      });
+    } else {
+      gbInstances.push({
+        x: group.x, y: group.y,
+        width: dims.w, height: dims.h,
+        spriteRect: uv,
+        color: [1, 1, 1, 0.7],
+      });
+    }
+  }
+
+  // Class start portraits
+  for (const node of Object.values(treeData.nodes)) {
+    if (node.type !== 'classStart') continue;
+    const isActive = node.classStartIndex === classId;
+    const spriteName = isActive ? CLASS_START_ART[node.classStartIndex] : 'PSStartNodeBackgroundInactive';
+    const uv = spriteData.getSpriteUV('startNode', spriteName);
+    if (!uv) continue;
+
+    // Active portrait is 241×222, inactive is 202×202
+    const w = isActive ? 482 : 404;
+    const h = isActive ? 444 : 404;
+    gbInstances.push({
+      x: node.x, y: node.y,
+      width: w, height: h,
+      spriteRect: uv,
+      color: [1, 1, 1, isActive ? 1 : 0.5],
+    });
+  }
+
+  if (gbInstances.length > 0) {
+    layers.push({ textureUrl: 'assets/tree/group-background-3.png', instances: gbInstances });
+  }
+
+  return layers;
 }
 
 // Utility: Build node frame + icon layers from TreeData + SpriteData + PassiveSpec
@@ -465,9 +625,15 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
   const allocatedIcons = [];
   const masteryIcons = [];
 
+  const searchActive = highlighted && highlighted.size > 0;
+
   for (const node of Object.values(treeData.nodes)) {
     const allocated = spec ? spec.isAllocated(node.id) : false;
     const isHighlighted = highlighted?.has(node.id);
+
+    // When searching, dim non-matching nodes
+    const dimmed = searchActive && !isHighlighted;
+    const dimAlpha = dimmed ? 0.2 : 1;
 
     // Frame
     const frameState = isHighlighted ? 'highlighted' : (allocated ? 'allocated' : 'unallocated');
@@ -478,13 +644,12 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
         y: node.y,
         size: frameSizes[node.type] || 39,
         spriteRect: frameUV,
-        color: [1, 1, 1, 1],
+        color: [1, 1, 1, dimAlpha],
       });
     }
 
     // Icon
     if (node.type === 'mastery') {
-      // Mastery uses separate sprite sheets
       const icon = node._inactiveIcon || node._icon;
       if (icon) {
         const uv = spriteData.getMasteryIconUV(icon, allocated);
@@ -494,14 +659,12 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
             y: node.y,
             size: iconSizes.mastery,
             spriteRect: uv,
-            color: [1, 1, 1, allocated ? 1 : 0.6],
+            color: [1, 1, 1, dimmed ? 0.15 : (allocated ? 1 : 0.6)],
           });
         }
       }
     } else if (node.type === 'classStart' || node.type === 'ascendancyStart' || node.type === 'jewel') {
-      // These types don't have skill icons in the skills sprite sheet
-      // For classStart, we could use group-background or startNode sprites
-      // For now, render frame only (which already distinguishes them)
+      // classStart portraits are in the background layers
     } else {
       const iconPath = node._icon;
       if (iconPath) {
@@ -513,7 +676,7 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
             y: node.y,
             size: iconSizes[node.type] || 26,
             spriteRect: iconUV,
-            color: isHighlighted ? [1, 1, 0.5, 1] : [1, 1, 1, 1],
+            color: isHighlighted ? [1, 1, 0.5, 1] : [1, 1, 1, dimAlpha],
           });
         }
       }

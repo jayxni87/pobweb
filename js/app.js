@@ -9,11 +9,13 @@ import { initModDB } from './engine/calc-setup.js';
 import { doActorAttribs, doActorLifeMana } from './engine/calc-perform.js';
 import { calcResistances, calcBlock, calcDefences } from './engine/calc-defence.js';
 import { TreeData } from './tree/tree-data.js';
-import { TreeRenderer, buildNodeLayers, buildConnectionInstances } from './tree/tree-renderer.js';
+import { TreeRenderer, buildNodeLayers, buildBackgroundLayers, buildConnectionInstances } from './tree/tree-renderer.js';
 import { TreeInteraction } from './tree/tree-interaction.js';
 import { TreeSearch } from './tree/tree-search.js';
 import { TreeAllocation } from './tree/tree-allocation.js';
 import { SpriteData } from './tree/sprite-data.js';
+import { importFromShareCode, importFromXml, exportAsXml, copyShareCode } from './io/file-manager.js';
+import { Build } from './io/build-xml.js';
 
 const TAB_NAMES = ['Tree', 'Skills', 'Items', 'Calcs', 'Config', 'Import', 'Notes'];
 const TREE_DATA_URL = 'js/data/tree/3_25.json';
@@ -135,10 +137,11 @@ class PoBApp {
         this.treeAllocation.toggleNode(node.id);
         this._rebuildTreeInstances();
         this._updateStatusBar();
+        this._runCalc();
       };
 
-      this.treeInteraction.onNodeHover = (node) => {
-        this._updateTreeTooltip(node);
+      this.treeInteraction.onNodeHover = (node, sx, sy) => {
+        this._updateTreeTooltip(node, sx, sy);
       };
 
       // Wire up zoom controls
@@ -200,8 +203,21 @@ class PoBApp {
     for (const url of Object.values(textures)) {
       if (url) loads.push(this.treeRenderer.loadTexture(url).catch(() => null));
     }
+
+    // Load class background art
+    const bgArts = [
+      'assets/tree/class-art/BackgroundStr.png',
+      'assets/tree/class-art/BackgroundDex.png',
+      'assets/tree/class-art/BackgroundInt.png',
+      'assets/tree/class-art/BackgroundStrDex.png',
+      'assets/tree/class-art/BackgroundStrInt.png',
+      'assets/tree/class-art/BackgroundDexInt.png',
+    ];
+    for (const url of bgArts) {
+      loads.push(this.treeRenderer.loadTexture(url).catch(() => null));
+    }
+
     await Promise.all(loads);
-    // Re-set layers now that textures are loaded
     this._rebuildTreeInstances();
   }
 
@@ -214,6 +230,12 @@ class PoBApp {
     this.treeRenderer.setConnectionInstances(connInstances);
 
     if (this.spriteData) {
+      const classId = this.treeData.classNameToId(this.className);
+
+      // Background layers (class illustration + class start portraits)
+      const bgLayers = buildBackgroundLayers(this.treeData, this.spriteData, classId);
+      this.treeRenderer.setBackgroundLayers(bgLayers);
+
       const layers = buildNodeLayers(this.treeData, this.spriteData, spec, { highlighted });
       this.treeRenderer.setNodeLayers(layers);
     }
@@ -245,7 +267,7 @@ class PoBApp {
     this.treeInteraction = null;
   }
 
-  _updateTreeTooltip(node) {
+  _updateTreeTooltip(node, screenX, screenY) {
     let tooltip = document.getElementById('tree-tooltip');
     if (!node) {
       if (tooltip) tooltip.style.display = 'none';
@@ -256,7 +278,7 @@ class PoBApp {
       tooltip = document.createElement('div');
       tooltip.id = 'tree-tooltip';
       tooltip.style.cssText = `
-        position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+        position: absolute;
         background: rgba(10,10,20,0.92); border: 1px solid #3a3a5e; border-radius: 4px;
         padding: 8px 12px; font-size: 12px; color: #d4d4d4; pointer-events: none;
         max-width: 350px; z-index: 10; white-space: pre-wrap;
@@ -269,6 +291,24 @@ class PoBApp {
     const statsText = node.stats?.length ? '\n' + node.stats.join('\n') : '';
     tooltip.textContent = node.name + typeLabel + statsText;
     tooltip.style.display = 'block';
+
+    // Position near cursor with offset, keeping within bounds
+    const offset = 15;
+    const parent = tooltip.parentElement;
+    const pw = parent ? parent.clientWidth : window.innerWidth;
+    const ph = parent ? parent.clientHeight : window.innerHeight;
+    const tw = tooltip.offsetWidth;
+    const th = tooltip.offsetHeight;
+
+    let left = screenX + offset;
+    let top = screenY + offset;
+
+    // Flip to left/above if it would overflow
+    if (left + tw > pw) left = screenX - tw - offset;
+    if (top + th > ph) top = screenY - th - offset;
+
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
   }
 
   _initMenuBar() {
@@ -527,15 +567,66 @@ class PoBApp {
         <div class="import-section">
           <h3>Import from File</h3>
           <input type="file" id="file-input" accept=".xml,.txt" style="display:none">
-          <button class="btn" onclick="document.getElementById('file-input').click()">Choose XML File</button>
+          <button class="btn" id="file-input-btn">Choose XML File</button>
         </div>
         <div class="import-section">
           <h3>Export</h3>
           <button class="btn" id="export-xml-btn">Save as XML</button>
           <button class="btn" id="export-code-btn">Copy Share Code</button>
+          <span class="import-status" id="export-status"></span>
         </div>
       </div>
     `;
+
+    // Import share code
+    document.getElementById('import-code-btn')?.addEventListener('click', () => {
+      const input = document.getElementById('share-code-input');
+      const status = document.getElementById('import-status');
+      if (!input?.value.trim()) return;
+      try {
+        const build = importFromShareCode(input.value);
+        this._applyBuild(build);
+        if (status) status.textContent = `Imported: ${build.className} Lv${build.level} (${build.treeNodes.length} nodes)`;
+      } catch (e) {
+        if (status) status.textContent = `Error: ${e.message}`;
+      }
+    });
+
+    // Import XML file
+    document.getElementById('file-input-btn')?.addEventListener('click', () => {
+      document.getElementById('file-input')?.click();
+    });
+    document.getElementById('file-input')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const build = importFromXml(text);
+        this._applyBuild(build);
+      } catch (err) {
+        console.error('File import error:', err);
+      }
+    });
+
+    // Export XML file
+    document.getElementById('export-xml-btn')?.addEventListener('click', () => {
+      const build = this._buildCurrentBuild();
+      exportAsXml(build);
+      const status = document.getElementById('export-status');
+      if (status) status.textContent = 'Saved!';
+    });
+
+    // Export share code to clipboard
+    document.getElementById('export-code-btn')?.addEventListener('click', async () => {
+      const build = this._buildCurrentBuild();
+      const status = document.getElementById('export-status');
+      try {
+        await copyShareCode(build);
+        if (status) status.textContent = 'Copied to clipboard!';
+      } catch (e) {
+        if (status) status.textContent = `Error: ${e.message}`;
+      }
+    });
   }
 
   _renderNotesTab() {
@@ -586,7 +677,32 @@ class PoBApp {
   _runCalc() {
     const modDB = new ModDB();
     if (!modDB.conditions) modDB.conditions = {};
-    initModDB(modDB, this.level);
+    initModDB(modDB);
+
+    // Add base class attributes
+    if (this.treeData) {
+      const classIdx = this.treeData.classNameToId(this.className);
+      const cls = this.treeData._classes[classIdx];
+      if (cls) {
+        modDB.newMod('Str', 'BASE', cls._baseStr, 'Base');
+        modDB.newMod('Dex', 'BASE', cls._baseDex, 'Base');
+        modDB.newMod('Int', 'BASE', cls._baseInt, 'Base');
+      }
+    }
+
+    // Base Life: 38 + 12*level (from PoE formula)
+    modDB.newMod('Life', 'BASE', 38 + 12 * this.level, 'Base');
+    // Base Mana: 34 + 6*level
+    modDB.newMod('Mana', 'BASE', 34 + 6 * this.level, 'Base');
+
+    // Add mods from allocated tree nodes
+    if (this.treeAllocation) {
+      const stats = this.treeAllocation.collectStats();
+      for (const statLine of stats) {
+        const mods = parseMod(statLine);
+        if (mods.length) modDB.addList(mods);
+      }
+    }
 
     const output = {};
     const actor = { modDB, output };
@@ -601,6 +717,65 @@ class PoBApp {
 
     if (this.sidebar) this.sidebar.update(output);
     if (this.activeTab === 'Calcs') this._renderCalcsTab();
+  }
+
+  _applyBuild(build) {
+    // Apply class
+    if (build.className) {
+      this.className = build.className;
+      const classSelect = document.getElementById('class-select');
+      if (classSelect) classSelect.value = build.className;
+    }
+
+    // Apply level
+    if (build.level) {
+      this.level = build.level;
+      const levelInput = document.getElementById('level-input');
+      if (levelInput) levelInput.value = build.level;
+    }
+
+    // Reset tree allocation for the new class
+    if (this.treeData) {
+      const classId = this.treeData.classNameToId(this.className);
+      this.treeAllocation = new TreeAllocation(this.treeData, classId >= 0 ? classId : 0);
+
+      // Allocate imported nodes
+      if (build.treeNodes?.length) {
+        for (const nodeId of build.treeNodes) {
+          if (this.treeData.nodes[nodeId]) {
+            this.treeAllocation.spec.allocated.add(nodeId);
+          }
+        }
+      }
+    }
+
+    // Rebuild tree if on tree tab
+    if (this.activeTab === 'Tree') {
+      this._rebuildTreeInstances();
+    }
+
+    this._updateStatusBar();
+    this._runCalc();
+  }
+
+  _buildCurrentBuild() {
+    const nodeIds = [];
+    if (this.treeAllocation) {
+      for (const id of this.treeAllocation.spec.allocated) {
+        // Skip the class start node from the export
+        const node = this.treeData?.nodes[id];
+        if (node && node.type !== 'classStart') {
+          nodeIds.push(id);
+        }
+      }
+    }
+
+    return new Build({
+      name: this.buildName,
+      className: this.className,
+      level: this.level,
+      treeNodes: nodeIds,
+    });
   }
 }
 

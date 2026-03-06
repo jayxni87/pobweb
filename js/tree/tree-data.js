@@ -140,6 +140,9 @@ export class TreeData {
         name: cls.name,
         ascendancies: cls.ascendancies || [],
         startNodeId,
+        _baseStr: cls.base_str ?? 20,
+        _baseDex: cls.base_dex ?? 20,
+        _baseInt: cls.base_int ?? 20,
       };
     });
   }

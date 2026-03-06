@@ -67,16 +67,21 @@ describe('PassiveSpec', () => {
     expect(spec.isAllocated(3)).toBe(false);
   });
 
-  it('refuses to deallocate if it disconnects graph', () => {
+  it('deallocating a mid-path node also prunes orphaned nodes', () => {
     const tree = makeTestTree();
     const spec = new PassiveSpec(tree, 0);
     spec.allocate(2);
     spec.allocate(3);
     spec.allocate(4);
-    // Node 3 connects 2 to 4, removing it would disconnect
+    spec.allocate(5);
+    // Node 3 connects 2 to 4 and 5; removing it should prune 4 and 5
     const result = spec.deallocate(3);
-    expect(result).toBe(false);
-    expect(spec.isAllocated(3)).toBe(true);
+    expect(result).toBe(true);
+    expect(spec.isAllocated(3)).toBe(false);
+    expect(spec.isAllocated(4)).toBe(false);
+    expect(spec.isAllocated(5)).toBe(false);
+    expect(spec.isAllocated(2)).toBe(true); // still connected to start
+    expect(spec.allocatedCount()).toBe(2); // start + node 2
   });
 
   it('refuses to deallocate class start', () => {

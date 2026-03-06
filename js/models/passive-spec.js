@@ -57,7 +57,7 @@ export class PassiveSpec {
     return true;
   }
 
-  // Deallocate a node (must not disconnect the graph)
+  // Deallocate a node and prune any nodes that become disconnected from the class start
   deallocate(nodeId) {
     if (!this.allocated.has(nodeId)) return false;
 
@@ -65,24 +65,27 @@ export class PassiveSpec {
     const startNodeId = this.tree.classStarts[this.classId];
     if (nodeId === startNodeId) return false;
 
-    // Check if removing this node would disconnect the tree
-    // Temporarily remove and check connectivity
     this.allocated.delete(nodeId);
-    if (this._isConnected()) {
-      return true;
+
+    // Find all nodes still reachable from class start
+    const reachable = this._reachableFromStart();
+
+    // Remove any allocated nodes that are no longer reachable
+    for (const id of [...this.allocated]) {
+      if (!reachable.has(id)) {
+        this.allocated.delete(id);
+      }
     }
-    // Restore if disconnected
-    this.allocated.add(nodeId);
-    return false;
+
+    return true;
   }
 
-  // Check if all allocated nodes are connected to class start
-  _isConnected() {
+  // Return the set of allocated nodes reachable from the class start
+  _reachableFromStart() {
     const startNodeId = this.tree.classStarts[this.classId];
-    if (!this.allocated.has(startNodeId)) return false;
-    if (this.allocated.size <= 1) return true;
-
     const visited = new Set();
+    if (!this.allocated.has(startNodeId)) return visited;
+
     const queue = [startNodeId];
     visited.add(startNodeId);
 
@@ -98,11 +101,13 @@ export class PassiveSpec {
       }
     }
 
-    // All allocated nodes should be reachable
-    for (const id of this.allocated) {
-      if (!visited.has(id)) return false;
-    }
-    return true;
+    return visited;
+  }
+
+  // Check if all allocated nodes are connected to class start
+  _isConnected() {
+    const reachable = this._reachableFromStart();
+    return reachable.size === this.allocated.size;
   }
 
   // Find shortest path from currently allocated nodes to target

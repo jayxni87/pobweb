@@ -110,7 +110,7 @@ export class TreeInteraction {
     const hitRadiusWorld = this.hitRadius / this.renderer.camera.zoom;
     const node = this.findNodeAt(world.x, world.y, hitRadiusWorld);
     if (this.onNodeHover) {
-      this.onNodeHover(node);
+      this.onNodeHover(node, screenX, screenY);
     }
     return node;
   }
@@ -127,6 +127,11 @@ export class TreeInteraction {
 
     canvas.addEventListener('mousemove', (e) => {
       if (this._dragging) {
+        // If mouse button was released outside canvas, stop dragging
+        if (e.buttons === 0) {
+          this.endDrag();
+          return;
+        }
         this.drag(e.offsetX, e.offsetY);
       } else {
         this.hover(e.offsetX, e.offsetY);

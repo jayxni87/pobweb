@@ -1,5 +1,8 @@
 node_modules/
 js/data/
 dist/
+PathOfBuilding/
+.claude/
+example.png
 .DS_Store
 *.log

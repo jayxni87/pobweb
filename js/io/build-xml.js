@@ -37,7 +37,9 @@ export function buildToXml(build) {
   // Tree section
   xml += '  <Tree>\n';
   if (build.treeNodes.length > 0) {
-    xml += `    <Spec nodes="${build.treeNodes.join(',')}">\n`;
+    const classNames = ['Scion', 'Marauder', 'Ranger', 'Witch', 'Duelist', 'Templar', 'Shadow'];
+    const classId = classNames.indexOf(build.className);
+    xml += `    <Spec treeVersion="3_25" classId="${classId >= 0 ? classId : 0}" ascendClassId="0" nodes="${build.treeNodes.join(',')}">\n`;
     xml += '    </Spec>\n';
   }
   xml += '  </Tree>\n';
@@ -107,10 +109,22 @@ function parseXmlSimple(xml) {
     build.name = extractAttr(attrs, 'buildName') || '';
   }
 
-  // Tree nodes
-  const specMatch = xml.match(/<Spec\s+nodes="([^"]*)"/);
-  if (specMatch && specMatch[1]) {
-    build.treeNodes = specMatch[1].split(',').map(Number).filter(n => !isNaN(n));
+  // Tree nodes - extract from <Spec ... nodes="..."> with any attribute order
+  const specMatch = xml.match(/<Spec\s+([^>]*)/);
+  if (specMatch) {
+    const specAttrs = specMatch[1];
+    const nodesStr = extractAttr(specAttrs, 'nodes');
+    if (nodesStr) {
+      build.treeNodes = nodesStr.split(',').map(Number).filter(n => !isNaN(n));
+    }
+    // Use classId from Spec as fallback if Build didn't have className
+    if (!build.className) {
+      const classId = extractAttr(specAttrs, 'classId');
+      if (classId !== null) {
+        const classNames = ['Scion', 'Marauder', 'Ranger', 'Witch', 'Duelist', 'Templar', 'Shadow'];
+        build.className = classNames[parseInt(classId, 10)] || 'Scion';
+      }
+    }
   }
 
   // Skills
