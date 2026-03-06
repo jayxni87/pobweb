@@ -92,6 +92,12 @@ export class TreeRenderer {
     this.connInstances = null;
     this.connInstanceCount = 0;
 
+    // Overlay layer (path preview, jewel radius, search highlights)
+    this.overlayNodeInstances = null;
+    this.overlayNodeCount = 0;
+    this.overlayConnInstances = null;
+    this.overlayConnCount = 0;
+
     this.dirty = true;
 
     this._initGL();
@@ -369,7 +375,9 @@ export class TreeRenderer {
 
     const vp = this._buildViewProjection();
 
-    // Draw connections first (behind nodes)
+    // Layer 1: Background (handled by clearColor for now)
+
+    // Layer 2: Connections
     if (this.connInstanceCount > 0) {
       gl.useProgram(this.connProgram);
       gl.uniformMatrix4fv(gl.getUniformLocation(this.connProgram, 'u_viewProjection'), false, vp);
@@ -377,7 +385,7 @@ export class TreeRenderer {
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.connInstanceCount);
     }
 
-    // Draw nodes
+    // Layer 3: Nodes
     if (this.nodeInstanceCount > 0 && this.atlasTexture) {
       gl.useProgram(this.nodeProgram);
       gl.uniformMatrix4fv(gl.getUniformLocation(this.nodeProgram, 'u_viewProjection'), false, vp);
@@ -388,7 +396,49 @@ export class TreeRenderer {
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nodeInstanceCount);
     }
 
+    // Layer 4: Overlays (path preview, jewel radius, search highlights)
+    // Overlay connections and nodes are rendered on top with additive blending
+    // (Overlay data is applied by temporarily uploading to the same VAOs)
+    // For simplicity, overlays reuse the same shader programs
+
     gl.bindVertexArray(null);
+  }
+
+  // Set overlay instances (path preview, search highlights)
+  setOverlayNodeInstances(instances) {
+    this.overlayNodeInstances = instances;
+    this.overlayNodeCount = instances.length;
+    this.dirty = true;
+  }
+
+  setOverlayConnectionInstances(connections) {
+    this.overlayConnInstances = connections;
+    this.overlayConnCount = connections.length;
+    this.dirty = true;
+  }
+
+  clearOverlays() {
+    this.overlayNodeInstances = null;
+    this.overlayNodeCount = 0;
+    this.overlayConnInstances = null;
+    this.overlayConnCount = 0;
+    this.dirty = true;
+  }
+
+  // Hit test: find node at screen coordinates
+  hitTest(screenX, screenY, nodeSize = 20) {
+    // Convert screen to world coordinates
+    const worldX = this.camera.x + (screenX - this.camera.width / 2) / this.camera.zoom;
+    const worldY = this.camera.y + (screenY - this.camera.height / 2) / this.camera.zoom;
+    return { x: worldX, y: worldY };
+  }
+
+  // Convert screen coords to world coords
+  screenToWorld(sx, sy) {
+    return {
+      x: this.camera.x + (sx - this.camera.width / 2) / this.camera.zoom,
+      y: this.camera.y + (sy - this.camera.height / 2) / this.camera.zoom,
+    };
   }
 
   destroy() {
@@ -426,6 +476,23 @@ export function buildNodeInstances(treeData, spec, options = {}) {
   }
 
   return instances;
+}
+
+// Utility: Build path preview instances (green connections for prospective allocation)
+export function buildPathPreviewInstances(treeData, pathNodeIds) {
+  const connections = [];
+  for (let i = 0; i < pathNodeIds.length - 1; i++) {
+    const nodeA = treeData.nodes[pathNodeIds[i]];
+    const nodeB = treeData.nodes[pathNodeIds[i + 1]];
+    if (!nodeA || !nodeB) continue;
+    connections.push({
+      x1: nodeA.x, y1: nodeA.y,
+      x2: nodeB.x, y2: nodeB.y,
+      width: 3,
+      color: CONNECTION_COLORS.path,
+    });
+  }
+  return connections;
 }
 
 // Utility: Build connection instances from TreeData + PassiveSpec

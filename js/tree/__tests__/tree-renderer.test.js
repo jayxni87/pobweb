@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildNodeInstances,
   buildConnectionInstances,
+  buildPathPreviewInstances,
   NODE_COLORS,
   CONNECTION_COLORS,
 } from '../tree-renderer.js';
@@ -106,5 +107,29 @@ describe('buildConnectionInstances', () => {
     const active = conns.find(c => c.color === CONNECTION_COLORS.active);
     const inactive = conns.find(c => c.color === CONNECTION_COLORS.inactive);
     expect(active.width).toBeGreaterThan(inactive.width);
+  });
+});
+
+describe('buildPathPreviewInstances', () => {
+  it('creates green connections for path nodes', () => {
+    const td = new TreeData(makeTreeJson());
+    const path = [1, 2, 3];
+    const conns = buildPathPreviewInstances(td, path);
+    expect(conns.length).toBe(2); // 1->2, 2->3
+    for (const c of conns) {
+      expect(c.color).toEqual(CONNECTION_COLORS.path);
+    }
+  });
+
+  it('handles single node path', () => {
+    const td = new TreeData(makeTreeJson());
+    const conns = buildPathPreviewInstances(td, [1]);
+    expect(conns.length).toBe(0);
+  });
+
+  it('handles empty path', () => {
+    const td = new TreeData(makeTreeJson());
+    const conns = buildPathPreviewInstances(td, []);
+    expect(conns.length).toBe(0);
   });
 });
