@@ -12,21 +12,29 @@ layout(location = 4) in vec4 a_spriteRect;
 layout(location = 5) in vec4 a_color;
 uniform mat4 u_viewProjection;
 out vec2 v_texCoord;
+out vec2 v_localUV;
 out vec4 v_color;
 void main() {
   vec2 worldPos = a_offset + a_position * a_size;
   gl_Position = u_viewProjection * vec4(worldPos, 0.0, 1.0);
   v_texCoord = a_spriteRect.xy + a_texCoord * a_spriteRect.zw;
+  v_localUV = a_texCoord;
   v_color = a_color;
 }`;
 
 const NODE_FRAG = `#version 300 es
 precision highp float;
 in vec2 v_texCoord;
+in vec2 v_localUV;
 in vec4 v_color;
 uniform sampler2D u_atlas;
+uniform float u_circleClip;
 out vec4 fragColor;
 void main() {
+  if (u_circleClip > 0.5) {
+    vec2 center = v_localUV - 0.5;
+    if (dot(center, center) > 0.25) discard;
+  }
   vec4 texColor = texture(u_atlas, v_texCoord);
   fragColor = texColor * v_color;
   if (fragColor.a < 0.01) discard;
@@ -289,6 +297,7 @@ export class TreeRenderer {
         instanceBuffer,
         instanceCount: layerDef.instances.length,
         texture,
+        circleClip: !!layerDef.circleClip,
       });
     }
 
@@ -399,12 +408,14 @@ export class TreeRenderer {
       gl.useProgram(this.nodeProgram);
       gl.uniformMatrix4fv(gl.getUniformLocation(this.nodeProgram, 'u_viewProjection'), false, vp);
       const atlasLoc = gl.getUniformLocation(this.nodeProgram, 'u_atlas');
+      const clipLoc = gl.getUniformLocation(this.nodeProgram, 'u_circleClip');
 
       for (const layer of this.nodeLayers) {
         if (!layer.texture || layer.instanceCount === 0) continue;
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, layer.texture);
         gl.uniform1i(atlasLoc, 0);
+        gl.uniform1f(clipLoc, layer.circleClip ? 1.0 : 0.0);
         gl.bindVertexArray(layer.vao);
         gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, layer.instanceCount);
       }
@@ -511,12 +522,12 @@ export function buildNodeLayers(treeData, spriteData, spec, options = {}) {
 
   const layers = [
     { textureUrl: 'assets/tree/frame-3.png', instances: frameInstances },
-    { textureUrl: 'assets/tree/skills-disabled-3.jpg', instances: unallocatedIcons },
-    { textureUrl: 'assets/tree/skills-3.jpg', instances: allocatedIcons },
+    { textureUrl: 'assets/tree/skills-disabled-3.jpg', instances: unallocatedIcons, circleClip: true },
+    { textureUrl: 'assets/tree/skills-3.jpg', instances: allocatedIcons, circleClip: true },
   ];
 
   if (masteryIcons.length > 0) {
-    layers.push({ textureUrl: 'assets/tree/mastery-disabled-3.png', instances: masteryIcons });
+    layers.push({ textureUrl: 'assets/tree/mastery-disabled-3.png', instances: masteryIcons, circleClip: true });
   }
 
   return layers;
