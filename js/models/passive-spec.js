@@ -10,6 +10,16 @@ export class PassiveSpec {
     this.ascendancyAllocated = new Set();
     this.masterySelections = new Map(); // nodeId → effectId
 
+    // Build set of valid ascendancy names for this class
+    this._classAscendancies = new Set();
+    const classes = tree.getClasses?.() || tree._classes || [];
+    const cls = classes[classId];
+    if (cls) {
+      for (const asc of cls.ascendancies || []) {
+        this._classAscendancies.add(asc.name || asc);
+      }
+    }
+
     // Allocate class start node
     const startNodeId = tree.classStarts[classId];
     if (startNodeId !== undefined) {
@@ -27,6 +37,22 @@ export class PassiveSpec {
 
   ascendancyCount() {
     return this.ascendancyAllocated.size;
+  }
+
+  // Check if a node can be traversed during pathfinding.
+  // Blocks: ascendancyStart nodes not belonging to the current class,
+  // and any ascendancy nodes not matching the current class.
+  _isPathable(node) {
+    if (!node) return false;
+    // Block ascendancyStart nodes for other classes
+    if (node.type === 'ascendancyStart') {
+      return node.ascendancy ? this._classAscendancies.has(node.ascendancy) : false;
+    }
+    // Block ascendancy nodes for other classes
+    if (node.ascendancy) {
+      return this._classAscendancies.has(node.ascendancy);
+    }
+    return true;
   }
 
   // Check if a node is adjacent to any currently allocated node
@@ -96,6 +122,8 @@ export class PassiveSpec {
       const current = queue.shift();
       const node = this.tree.nodes[current];
       if (!node || !node.adjacent) continue;
+      // Mastery nodes are reachable but don't propagate (dead ends)
+      if (node.type === 'mastery') continue;
       for (const adj of node.adjacent) {
         if (this.allocated.has(adj) && !visited.has(adj)) {
           visited.add(adj);
@@ -118,6 +146,9 @@ export class PassiveSpec {
   findShortestPath(targetId) {
     if (this.isAllocated(targetId)) return [];
 
+    const targetNode = this.tree.nodes[targetId];
+    if (!targetNode || !this._isPathable(targetNode)) return null;
+
     const visited = new Set();
     const parent = new Map();
     const queue = [];
@@ -125,7 +156,11 @@ export class PassiveSpec {
     // Start BFS from all allocated nodes
     for (const allocId of this.allocated) {
       visited.add(allocId);
-      queue.push(allocId);
+      // Don't expand through mastery nodes (they are dead ends for pathing)
+      const allocNode = this.tree.nodes[allocId];
+      if (allocNode && allocNode.type !== 'mastery') {
+        queue.push(allocId);
+      }
     }
 
     while (queue.length > 0) {
@@ -135,6 +170,10 @@ export class PassiveSpec {
 
       for (const adj of node.adjacent) {
         if (visited.has(adj)) continue;
+
+        const adjNode = this.tree.nodes[adj];
+        if (!adjNode || !this._isPathable(adjNode)) continue;
+
         visited.add(adj);
         parent.set(adj, current);
 
@@ -149,7 +188,10 @@ export class PassiveSpec {
           return path;
         }
 
-        queue.push(adj);
+        // Don't expand through mastery nodes (they are dead ends for pathing)
+        if (adjNode.type !== 'mastery') {
+          queue.push(adj);
+        }
       }
     }
 

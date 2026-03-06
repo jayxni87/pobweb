@@ -265,3 +265,100 @@ describe('PassiveSpec mastery selections', () => {
     expect(spec.getMasteryEffect(20)).toBeNull();
   });
 });
+
+// Helper: tree with mastery in the middle of a path
+function makeTreeWithMasteryPath() {
+  // Graph: 1 (start) -> 2 -> 20 (mastery) -> 3
+  return {
+    nodes: {
+      1: { id: 1, name: 'Start', type: 'classStart', stats: [], adjacent: [2], masteryEffects: [] },
+      2: { id: 2, name: 'Node A', type: 'normal', stats: [], adjacent: [1, 20], masteryEffects: [] },
+      20: { id: 20, name: 'ES Mastery', type: 'mastery', stats: [], adjacent: [2, 3], masteryEffects: [
+        { effect: 100, stats: ['+50 to ES'] },
+      ]},
+      3: { id: 3, name: 'Foresight', type: 'notable', stats: ['+20% ES'], adjacent: [20], masteryEffects: [] },
+    },
+    classStarts: { 0: 1 },
+    _classes: [{ name: 'Scion', ascendancies: [] }],
+  };
+}
+
+describe('mastery nodes block pathing through', () => {
+  it('cannot path through a mastery node to reach nodes beyond it', () => {
+    const tree = makeTreeWithMasteryPath();
+    const spec = new PassiveSpec(tree, 0);
+    // Trying to path to node 3 (Foresight) would require going through mastery node 20
+    const path = spec.findShortestPath(3);
+    expect(path).toBeNull();
+  });
+
+  it('can still path TO a mastery node', () => {
+    const tree = makeTreeWithMasteryPath();
+    const spec = new PassiveSpec(tree, 0);
+    const path = spec.findShortestPath(20);
+    expect(path).toEqual([2, 20]);
+  });
+
+  it('deallocating a node behind a mastery prunes it since mastery does not propagate', () => {
+    const tree = makeTreeWithMasteryPath();
+    const spec = new PassiveSpec(tree, 0);
+    spec.allocate(2);
+    spec.allocate(20); // mastery
+    // Force-allocate node 3 directly (simulating a previous state)
+    spec.allocated.add(3);
+    // Now deallocate node 2 — mastery can't propagate, so node 3 becomes orphaned
+    spec.deallocate(2);
+    expect(spec.isAllocated(2)).toBe(false);
+    expect(spec.isAllocated(20)).toBe(false);
+    expect(spec.isAllocated(3)).toBe(false);
+  });
+});
+
+// Helper: tree with ascendancy starts for different classes
+function makeTreeWithAscendancies() {
+  // Graph: 1 (start) -> 2 (gateway) -> 10 (ascStart Slayer) -> 11
+  //                                  -> 20 (ascStart Guardian) -> 21
+  return {
+    nodes: {
+      1: { id: 1, name: 'Start', type: 'classStart', stats: [], adjacent: [2], classStartIndex: 4, masteryEffects: [] },
+      2: { id: 2, name: 'Gateway', type: 'normal', stats: [], adjacent: [1, 10, 20], masteryEffects: [] },
+      10: { id: 10, name: 'Asc Start Slayer', type: 'ascendancyStart', stats: [], adjacent: [2, 11], ascendancy: 'Slayer', masteryEffects: [] },
+      11: { id: 11, name: 'Slayer Notable', type: 'notable', stats: ['Slayer Stuff'], adjacent: [10], ascendancy: 'Slayer', masteryEffects: [] },
+      20: { id: 20, name: 'Asc Start Guardian', type: 'ascendancyStart', stats: [], adjacent: [2, 21], ascendancy: 'Guardian', masteryEffects: [] },
+      21: { id: 21, name: 'Guardian Notable', type: 'notable', stats: ['Guardian Stuff'], adjacent: [20], ascendancy: 'Guardian', masteryEffects: [] },
+    },
+    classStarts: { 4: 1 },
+    _classes: [
+      { name: 'Scion', ascendancies: [] },
+      { name: 'Marauder', ascendancies: [] },
+      { name: 'Ranger', ascendancies: [] },
+      { name: 'Witch', ascendancies: [] },
+      { name: 'Duelist', ascendancies: [{ name: 'Slayer' }, { name: 'Gladiator' }, { name: 'Champion' }] },
+      { name: 'Templar', ascendancies: [{ name: 'Inquisitor' }, { name: 'Hierophant' }, { name: 'Guardian' }] },
+      { name: 'Shadow', ascendancies: [] },
+    ],
+  };
+}
+
+describe('ascendancy pathing restrictions', () => {
+  it('can path to own class ascendancy nodes (Duelist -> Slayer)', () => {
+    const tree = makeTreeWithAscendancies();
+    const spec = new PassiveSpec(tree, 4); // Duelist
+    const path = spec.findShortestPath(11);
+    expect(path).toEqual([2, 10, 11]);
+  });
+
+  it('cannot path to another class ascendancy (Duelist -> Guardian)', () => {
+    const tree = makeTreeWithAscendancies();
+    const spec = new PassiveSpec(tree, 4); // Duelist
+    const path = spec.findShortestPath(21);
+    expect(path).toBeNull();
+  });
+
+  it('cannot path to another class ascendancyStart (Duelist -> Guardian start)', () => {
+    const tree = makeTreeWithAscendancies();
+    const spec = new PassiveSpec(tree, 4); // Duelist
+    const path = spec.findShortestPath(20);
+    expect(path).toBeNull();
+  });
+});
