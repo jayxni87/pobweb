@@ -103,6 +103,7 @@ export class SpriteData {
       masteryActiveSelected: this.getSheetPath('masteryActiveSelected'),
       ascendancy: this.getSheetPath('ascendancy'),
       groupBackground: this.getSheetPath('groupBackground'),
+      ascendancyBackground: this.getSheetPath('ascendancyBackground'),
     };
   }
 }

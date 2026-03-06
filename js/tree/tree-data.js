@@ -137,6 +137,12 @@ export class TreeData {
         this._ascendancyIndex.get(node.ascendancy).push(node);
       }
 
+      // Mark group with ascendancy info (for background portrait rendering)
+      if (node.type === 'ascendancyStart' && node.ascendancy && group) {
+        group.ascendancyName = node.ascendancy;
+        group.isAscendancyStart = true;
+      }
+
       // Track class starts from classStartIndex (raw game data format)
       if (node.classStartIndex !== undefined) {
         this.classStarts[node.classStartIndex] = id;

@@ -609,6 +609,37 @@ export function buildBackgroundLayers(treeData, spriteData, classId) {
     layers.push({ textureUrl: 'assets/tree/group-background-3.png', instances: gbInstances });
   }
 
+  // Ascendancy background portraits (centered on ascendancy start groups)
+  const ascBgInstances = [];
+  // Determine which ascendancies belong to the selected class
+  const activeAscendancies = new Set();
+  const classes = treeData.getClasses?.() || [];
+  const selectedClass = classes[classId];
+  if (selectedClass) {
+    for (const asc of selectedClass.ascendancies || []) {
+      activeAscendancies.add(asc.name || asc);
+    }
+  }
+  for (const group of Object.values(treeData.groups)) {
+    if (!group.isAscendancyStart || !group.ascendancyName) continue;
+    const spriteName = 'Classes' + group.ascendancyName;
+    const uv = spriteData.getSpriteUV('ascendancyBackground', spriteName);
+    if (!uv) continue;
+    // Ascendant is 587x587, others are 498x498 — use sprite pixel size * 2.66
+    const isAscendant = group.ascendancyName === 'Ascendant';
+    const worldSize = isAscendant ? 1561 : 1325;
+    const isActive = activeAscendancies.has(group.ascendancyName);
+    ascBgInstances.push({
+      x: group.x, y: group.y,
+      width: worldSize, height: worldSize,
+      spriteRect: uv,
+      color: [1, 1, 1, isActive ? 1.0 : 0.25],
+    });
+  }
+  if (ascBgInstances.length > 0) {
+    layers.push({ textureUrl: 'assets/tree/ascendancy-background-3.png', instances: ascBgInstances });
+  }
+
   return layers;
 }
 
