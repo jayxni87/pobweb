@@ -13,6 +13,7 @@ export class Build {
     this.specs = opts.specs || [];       // [{title, classId, ascendClassId, treeVersion, nodes, masteryEffects, jewelSockets}]
     this.activeSpec = opts.activeSpec || 0; // 0-indexed
     this.skills = opts.skills || [];
+    this.mainSocketGroup = opts.mainSocketGroup || 0;
     this.items = opts.items || [];
     this.itemsById = opts.itemsById || {};   // id → raw item text
     this.itemSlots = opts.itemSlots || {};    // slotName → itemId
@@ -61,15 +62,24 @@ export function buildToXml(build) {
   }
   xml += '  </Tree>\n';
 
-  // Skills section
-  xml += '  <Skills>\n';
+  // Skills section — PoB format
+  xml += `  <Skills activeSkillSet="1" mainSocketGroup="${build.mainSocketGroup || 0}">\n`;
+  xml += '    <SkillSet id="1">\n';
   for (const group of build.skills) {
-    xml += `    <SkillGroup slot="${escapeXml(group.slot || '')}">\n`;
-    for (const gem of group.gems) {
-      xml += `      <Gem nameSpec="${escapeXml(gem.name)}" level="${gem.level}" quality="${gem.quality || 0}"/>\n`;
+    const enabled = group.enabled !== undefined ? group.enabled : true;
+    xml += `      <Skill enabled="${enabled}" slot="${escapeXml(group.slot || '')}" label="${escapeXml(group.label || '')}" mainActiveSkill="${group.mainActiveSkill || 1}" includeInFullDPS="${group.includeInFullDPS ? 'true' : 'false'}">\n`;
+    for (const gem of (group.gems || [])) {
+      const gemEnabled = gem.enabled !== undefined ? gem.enabled : true;
+      let attrs = `nameSpec="${escapeXml(gem.name || '')}" level="${gem.level || 1}" quality="${gem.quality || 0}"`;
+      if (gem.gemId) attrs += ` gemId="${escapeXml(gem.gemId)}"`;
+      if (gem.variantId) attrs += ` variantId="${escapeXml(gem.variantId)}"`;
+      if (gem.skillId) attrs += ` skillId="${escapeXml(gem.skillId)}"`;
+      attrs += ` qualityId="${escapeXml(gem.qualityId || 'Default')}" enabled="${gemEnabled}" count="${gem.count || 1}"`;
+      xml += `        <Gem ${attrs}/>\n`;
     }
-    xml += '    </SkillGroup>\n';
+    xml += '      </Skill>\n';
   }
+  xml += '    </SkillSet>\n';
   xml += '  </Skills>\n';
 
   // Items section - PoB format: <Item id="N"> + <ItemSet><Slot>
@@ -208,21 +218,77 @@ function parseXmlSimple(xml) {
     }
   }
 
-  // Skills
-  const skillGroupRegex = /<SkillGroup\s+slot="([^"]*)">([\s\S]*?)<\/SkillGroup>/g;
-  let sgMatch;
-  while ((sgMatch = skillGroupRegex.exec(xml)) !== null) {
-    const group = { slot: sgMatch[1], gems: [] };
-    const gemRegex = /<Gem\s+nameSpec="([^"]*)"\s+level="(\d+)"\s+quality="(\d+)"\/>/g;
+  // Parse mainSocketGroup from <Skills>
+  const skillsMatch = xml.match(/<Skills\s+([^>]*)>/);
+  if (skillsMatch) {
+    const msGroup = extractAttr(skillsMatch[1], 'mainSocketGroup');
+    if (msGroup) build.mainSocketGroup = parseInt(msGroup, 10);
+  }
+
+  // Skills — try PoB <Skill> format first
+  const skillRegex = /<Skill\s+([^>]*)>([\s\S]*?)<\/Skill>/g;
+  let skillMatch;
+  while ((skillMatch = skillRegex.exec(xml)) !== null) {
+    const sAttrs = skillMatch[1];
+    const group = {
+      enabled: extractAttr(sAttrs, 'enabled') !== 'false',
+      slot: extractAttr(sAttrs, 'slot') || '',
+      label: extractAttr(sAttrs, 'label') || '',
+      mainActiveSkill: parseInt(extractAttr(sAttrs, 'mainActiveSkill') || '1', 10),
+      includeInFullDPS: extractAttr(sAttrs, 'includeInFullDPS') === 'true',
+      gems: [],
+    };
+    const gemRegex = /<Gem\s+([\s\S]*?)\s*\/>/g;
     let gMatch;
-    while ((gMatch = gemRegex.exec(sgMatch[2])) !== null) {
+    while ((gMatch = gemRegex.exec(skillMatch[2])) !== null) {
+      const gAttrs = gMatch[1];
       group.gems.push({
-        name: gMatch[1],
-        level: parseInt(gMatch[2], 10),
-        quality: parseInt(gMatch[3], 10),
+        name: extractAttr(gAttrs, 'nameSpec') || '',
+        gemId: extractAttr(gAttrs, 'gemId') || '',
+        variantId: extractAttr(gAttrs, 'variantId') || '',
+        skillId: extractAttr(gAttrs, 'skillId') || '',
+        level: parseInt(extractAttr(gAttrs, 'level') || '1', 10),
+        quality: parseInt(extractAttr(gAttrs, 'quality') || '0', 10),
+        qualityId: extractAttr(gAttrs, 'qualityId') || 'Default',
+        enabled: extractAttr(gAttrs, 'enabled') !== 'false',
+        count: parseInt(extractAttr(gAttrs, 'count') || '1', 10),
       });
     }
     build.skills.push(group);
+  }
+
+  // Fallback: legacy <SkillGroup> format
+  if (build.skills.length === 0) {
+    const skillGroupRegex = /<SkillGroup\s+([^>]*)>([\s\S]*?)<\/SkillGroup>/g;
+    let sgMatch;
+    while ((sgMatch = skillGroupRegex.exec(xml)) !== null) {
+      const sgAttrs = sgMatch[1];
+      const group = {
+        enabled: true,
+        slot: extractAttr(sgAttrs, 'slot') || '',
+        label: '',
+        mainActiveSkill: 1,
+        includeInFullDPS: false,
+        gems: [],
+      };
+      const gemRegex = /<Gem\s+([\s\S]*?)\s*\/>/g;
+      let gMatch;
+      while ((gMatch = gemRegex.exec(sgMatch[2])) !== null) {
+        const gAttrs = gMatch[1];
+        group.gems.push({
+          name: extractAttr(gAttrs, 'nameSpec') || '',
+          gemId: extractAttr(gAttrs, 'gemId') || '',
+          variantId: extractAttr(gAttrs, 'variantId') || '',
+          skillId: extractAttr(gAttrs, 'skillId') || '',
+          level: parseInt(extractAttr(gAttrs, 'level') || '1', 10),
+          quality: parseInt(extractAttr(gAttrs, 'quality') || '0', 10),
+          qualityId: extractAttr(gAttrs, 'qualityId') || 'Default',
+          enabled: extractAttr(gAttrs, 'enabled') !== 'false',
+          count: parseInt(extractAttr(gAttrs, 'count') || '1', 10),
+        });
+      }
+      build.skills.push(group);
+    }
   }
 
   // Items — support both formats: <Item slot="..."> (our format) and <Item id="N"> (PoB format)
@@ -410,17 +476,67 @@ function parseDom(doc) {
     }
   }
 
-  doc.querySelectorAll('SkillGroup').forEach(sg => {
-    const group = { slot: sg.getAttribute('slot') || '', gems: [] };
-    sg.querySelectorAll('Gem').forEach(g => {
-      group.gems.push({
-        name: g.getAttribute('nameSpec') || '',
-        level: parseInt(g.getAttribute('level') || '1', 10),
-        quality: parseInt(g.getAttribute('quality') || '0', 10),
+  // Parse mainSocketGroup from <Skills>
+  const skillsEl = doc.querySelector('Skills');
+  if (skillsEl) {
+    const msGroup = skillsEl.getAttribute('mainSocketGroup');
+    if (msGroup) build.mainSocketGroup = parseInt(msGroup, 10);
+  }
+
+  // Skills — try PoB <Skill> format first
+  const skillEls = doc.querySelectorAll('Skill');
+  if (skillEls.length > 0) {
+    skillEls.forEach(skillEl => {
+      const group = {
+        enabled: skillEl.getAttribute('enabled') !== 'false',
+        slot: skillEl.getAttribute('slot') || '',
+        label: skillEl.getAttribute('label') || '',
+        mainActiveSkill: parseInt(skillEl.getAttribute('mainActiveSkill') || '1', 10),
+        includeInFullDPS: skillEl.getAttribute('includeInFullDPS') === 'true',
+        gems: [],
+      };
+      skillEl.querySelectorAll('Gem').forEach(g => {
+        group.gems.push({
+          name: g.getAttribute('nameSpec') || '',
+          gemId: g.getAttribute('gemId') || '',
+          variantId: g.getAttribute('variantId') || '',
+          skillId: g.getAttribute('skillId') || '',
+          level: parseInt(g.getAttribute('level') || '1', 10),
+          quality: parseInt(g.getAttribute('quality') || '0', 10),
+          qualityId: g.getAttribute('qualityId') || 'Default',
+          enabled: g.getAttribute('enabled') !== 'false',
+          count: parseInt(g.getAttribute('count') || '1', 10),
+        });
       });
+      build.skills.push(group);
     });
-    build.skills.push(group);
-  });
+  } else {
+    // Fallback: legacy <SkillGroup> format
+    doc.querySelectorAll('SkillGroup').forEach(sg => {
+      const group = {
+        enabled: true,
+        slot: sg.getAttribute('slot') || '',
+        label: '',
+        mainActiveSkill: 1,
+        includeInFullDPS: false,
+        gems: [],
+      };
+      sg.querySelectorAll('Gem').forEach(g => {
+        group.gems.push({
+          name: g.getAttribute('nameSpec') || '',
+          gemId: g.getAttribute('gemId') || '',
+          variantId: g.getAttribute('variantId') || '',
+          skillId: g.getAttribute('skillId') || '',
+          level: parseInt(g.getAttribute('level') || '1', 10),
+          quality: parseInt(g.getAttribute('quality') || '0', 10),
+          qualityId: g.getAttribute('qualityId') || 'Default',
+          enabled: g.getAttribute('enabled') !== 'false',
+          count: parseInt(g.getAttribute('count') || '1', 10),
+        });
+      });
+      build.skills.push(group);
+    });
+  }
 
   // Items — support both formats: <Item slot="..."> (our format) and <Item id="N"> (PoB format)
   doc.querySelectorAll('Item').forEach(item => {

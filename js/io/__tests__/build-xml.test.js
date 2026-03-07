@@ -53,7 +53,8 @@ describe('buildToXml', () => {
       ],
     });
     const xml = buildToXml(build);
-    expect(xml).toContain('<Skills>');
+    expect(xml).toContain('<Skills ');
+    expect(xml).toContain('<Skill ');
     expect(xml).toContain('Fireball');
   });
 
@@ -113,12 +114,14 @@ describe('xmlToBuild', () => {
   it('round-trips skills', () => {
     const original = new Build({
       skills: [
-        { slot: 'Weapon 1', gems: [{ name: 'Glacial Hammer', level: 15, quality: 10 }] },
+        { enabled: true, slot: 'Weapon 1', label: '', mainActiveSkill: 1, includeInFullDPS: false,
+          gems: [{ name: 'Glacial Hammer', level: 15, quality: 10, enabled: true, count: 1 }] },
       ],
     });
     const xml = buildToXml(original);
     const restored = xmlToBuild(xml);
     expect(restored.skills).toHaveLength(1);
+    expect(restored.skills[0].slot).toBe('Weapon 1');
     expect(restored.skills[0].gems[0].name).toBe('Glacial Hammer');
     expect(restored.skills[0].gems[0].level).toBe(15);
   });
@@ -493,5 +496,111 @@ describe('buildToXml - PoB item format', () => {
     expect(parsed.items.length).toBe(1);
     expect(parsed.items[0].slot).toBe('Ring 1');
     expect(parsed.items[0].raw).toContain('Storm Band');
+  });
+});
+
+describe('PoB Skills XML format', () => {
+  it('parses PoB <Skill> format', () => {
+    const xml = `<?xml version="1.0"?>
+<PathOfBuilding>
+  <Build className="Witch" level="90" ascendClassName="" buildName="Test"/>
+  <Tree/>
+  <Skills activeSkillSet="1">
+    <SkillSet id="1">
+      <Skill enabled="true" slot="Body Armour" label="Main Attack" mainActiveSkill="1" includeInFullDPS="true">
+        <Gem nameSpec="Fireball" gemId="Metadata/Items/Gems/SkillGemFireball" variantId="Fireball"
+             level="20" quality="20" qualityId="Default" enabled="true" count="1" skillId="Fireball"/>
+        <Gem nameSpec="Spell Echo Support" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="false" slot="" label="Auras">
+        <Gem nameSpec="Determination" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"/>
+  <Config/>
+  <Notes/>
+</PathOfBuilding>`;
+
+    const build = xmlToBuild(xml);
+    expect(build.skills).toHaveLength(2);
+    expect(build.skills[0].enabled).toBe(true);
+    expect(build.skills[0].slot).toBe('Body Armour');
+    expect(build.skills[0].label).toBe('Main Attack');
+    expect(build.skills[0].mainActiveSkill).toBe(1);
+    expect(build.skills[0].includeInFullDPS).toBe(true);
+    expect(build.skills[0].gems).toHaveLength(2);
+    expect(build.skills[0].gems[0].name).toBe('Fireball');
+    expect(build.skills[0].gems[0].gemId).toBe('Metadata/Items/Gems/SkillGemFireball');
+    expect(build.skills[0].gems[0].level).toBe(20);
+    expect(build.skills[0].gems[0].quality).toBe(20);
+    expect(build.skills[0].gems[0].enabled).toBe(true);
+    expect(build.skills[0].gems[0].skillId).toBe('Fireball');
+    expect(build.skills[1].enabled).toBe(false);
+    expect(build.skills[1].label).toBe('Auras');
+  });
+
+  it('parses legacy <SkillGroup> format', () => {
+    const xml = `<?xml version="1.0"?>
+<PathOfBuilding>
+  <Build className="Witch" level="90" ascendClassName="" buildName="Test"/>
+  <Tree/>
+  <Skills>
+    <SkillGroup slot="Body Armour">
+      <Gem nameSpec="Fireball" level="20" quality="0"/>
+    </SkillGroup>
+  </Skills>
+  <Items activeItemSet="1"/>
+  <Config/>
+  <Notes/>
+</PathOfBuilding>`;
+
+    const build = xmlToBuild(xml);
+    expect(build.skills).toHaveLength(1);
+    expect(build.skills[0].slot).toBe('Body Armour');
+    expect(build.skills[0].gems[0].name).toBe('Fireball');
+  });
+
+  it('serializes to PoB <Skill> format', () => {
+    const build = new Build({
+      skills: [{
+        enabled: true, slot: 'Body Armour', label: 'Main Attack',
+        mainActiveSkill: 1, includeInFullDPS: true,
+        gems: [
+          { name: 'Fireball', gemId: 'Metadata/Items/Gems/SkillGemFireball', variantId: 'Fireball',
+            level: 20, quality: 20, qualityId: 'Default', enabled: true, skillId: 'Fireball', count: 1 },
+        ],
+      }],
+    });
+
+    const xml = buildToXml(build);
+    expect(xml).toContain('<Skill ');
+    expect(xml).toContain('enabled="true"');
+    expect(xml).toContain('slot="Body Armour"');
+    expect(xml).toContain('label="Main Attack"');
+    expect(xml).toContain('includeInFullDPS="true"');
+    expect(xml).toContain('gemId="Metadata/Items/Gems/SkillGemFireball"');
+    expect(xml).toContain('nameSpec="Fireball"');
+    expect(xml).not.toContain('<SkillGroup');
+  });
+
+  it('round-trips PoB skills format', () => {
+    const build = new Build({
+      skills: [{
+        enabled: true, slot: 'Helmet', label: '', mainActiveSkill: 1,
+        includeInFullDPS: false,
+        gems: [
+          { name: 'Determination', level: 20, quality: 0, enabled: true, count: 1 },
+          { name: 'Enlighten Support', level: 3, quality: 0, enabled: true, count: 1 },
+        ],
+      }],
+    });
+    const xml = buildToXml(build);
+    const rebuilt = xmlToBuild(xml);
+    expect(rebuilt.skills).toHaveLength(1);
+    expect(rebuilt.skills[0].slot).toBe('Helmet');
+    expect(rebuilt.skills[0].gems).toHaveLength(2);
+    expect(rebuilt.skills[0].gems[0].name).toBe('Determination');
+    expect(rebuilt.skills[0].gems[1].name).toBe('Enlighten Support');
   });
 });
