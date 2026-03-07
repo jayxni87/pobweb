@@ -4,6 +4,7 @@ js/data/*
 !js/data/cluster-jewels.json
 !js/data/skills.json
 !js/data/skill-stat-map.json
+!js/data/gem-registry.js
 !js/data/__tests__/
 !js/data/tree/
 js/data/tree/*
