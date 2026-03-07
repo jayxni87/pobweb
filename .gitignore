@@ -1,6 +1,8 @@
 node_modules/
 js/data/*
+!js/data/bases/
 !js/data/base-types.js
+!js/data/gems.json
 !js/data/cluster-jewels.json
 !js/data/skills.json
 !js/data/skill-stat-map.json
