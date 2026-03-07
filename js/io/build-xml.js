@@ -72,10 +72,21 @@ export function buildToXml(build) {
   }
   xml += '  </Skills>\n';
 
-  // Items section
-  xml += '  <Items>\n';
-  for (const item of build.items) {
-    xml += `    <Item slot="${escapeXml(item.slot || '')}">${escapeXml(item.raw || '')}</Item>\n`;
+  // Items section - PoB format: <Item id="N"> + <ItemSet><Slot>
+  xml += '  <Items activeItemSet="1">\n';
+  for (let i = 0; i < build.items.length; i++) {
+    const item = build.items[i];
+    xml += `    <Item id="${i + 1}">${escapeXml(item.raw || '')}</Item>\n`;
+  }
+  if (build.items.length > 0) {
+    xml += '    <ItemSet id="1">\n';
+    for (let i = 0; i < build.items.length; i++) {
+      const item = build.items[i];
+      if (item.slot) {
+        xml += `      <Slot name="${escapeXml(item.slot)}" itemId="${i + 1}"/>\n`;
+      }
+    }
+    xml += '    </ItemSet>\n';
   }
   xml += '  </Items>\n';
 

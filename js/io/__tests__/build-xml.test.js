@@ -64,7 +64,7 @@ describe('buildToXml', () => {
       ],
     });
     const xml = buildToXml(build);
-    expect(xml).toContain('<Items>');
+    expect(xml).toContain('<Items activeItemSet="1">');
     expect(xml).toContain('Test Helm');
   });
 
@@ -458,5 +458,40 @@ Eternal Burgonet
     const build = new Build();
     expect(build.itemsById).toEqual({});
     expect(build.itemSlots).toEqual({});
+  });
+});
+
+describe('buildToXml - PoB item format', () => {
+  it('serializes items with id and Slot references', () => {
+    const build = new Build({
+      items: [
+        { slot: 'Weapon 1', raw: 'Rarity: Rare\nHavoc Bite\nVaal Axe' },
+        { slot: 'Body Armour', raw: 'Rarity: Unique\nTabula Rasa\nSimple Robe' },
+      ],
+    });
+    const xml = buildToXml(build);
+
+    // Should have <Item id="1"> and <Item id="2">
+    expect(xml).toContain('<Item id="1">');
+    expect(xml).toContain('<Item id="2">');
+    // Should have <ItemSet> with <Slot> references
+    expect(xml).toContain('<Slot name="Weapon 1" itemId="1"');
+    expect(xml).toContain('<Slot name="Body Armour" itemId="2"');
+  });
+
+  it('round-trips items through serialize/parse', () => {
+    const build = new Build({
+      className: 'Marauder',
+      level: 90,
+      items: [
+        { slot: 'Ring 1', raw: 'Rarity: Rare\nStorm Band\nRuby Ring' },
+      ],
+    });
+    const xml = buildToXml(build);
+    const parsed = xmlToBuild(xml);
+
+    expect(parsed.items.length).toBe(1);
+    expect(parsed.items[0].slot).toBe('Ring 1');
+    expect(parsed.items[0].raw).toContain('Storm Band');
   });
 });
