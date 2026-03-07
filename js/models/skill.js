@@ -37,6 +37,50 @@ export class GemInstance {
     this.enabled = opts.enabled !== undefined ? opts.enabled : true;
     this.gemData = opts.gemData || null;
     this.skillPart = opts.skillPart || null;
+    this.gemId = opts.gemId || null;
+    this.skillId = opts.skillId || null;
+    this.count = opts.count || 1;
+  }
+
+  /**
+   * Resolve this gem's gemData using a GemRegistry.
+   * Priority: gemId > skillId > name.
+   * @param {Object} registry - GemRegistry instance
+   */
+  resolveGem(registry) {
+    let found = null;
+
+    if (this.gemId) {
+      found = registry.findByGameId(this.gemId);
+      if (found) {
+        this.gemData = found;
+        this.name = found.name;
+        this.skillId = found.grantedEffectId || this.skillId;
+        return;
+      }
+    }
+
+    if (this.skillId) {
+      found = registry.findBySkillId(this.skillId);
+      if (found) {
+        this.gemData = found;
+        this.name = found.name;
+        this.gemId = found.gameId || this.gemId;
+        return;
+      }
+    }
+
+    if (this.name) {
+      found = registry.findByName(this.name);
+      if (found) {
+        this.gemData = found;
+        this.gemId = found.gameId || this.gemId;
+        this.skillId = found.grantedEffectId || this.skillId;
+        return;
+      }
+    }
+
+    this.gemData = null;
   }
 }
 
@@ -47,6 +91,9 @@ export class SkillGroup {
     this.enabled = opts.enabled !== undefined ? opts.enabled : true;
     this.slot = opts.slot || null;
     this.label = opts.label || '';
+    this.mainActiveSkill = opts.mainActiveSkill || 1;
+    this.includeInFullDPS = opts.includeInFullDPS !== undefined ? opts.includeInFullDPS : false;
+    this.source = opts.source || null;
   }
 
   addGem(opts) {
@@ -69,5 +116,15 @@ export class SkillGroup {
 
   getSupportGems() {
     return this.gems.filter(g => g.gemData && isSupport(g.gemData));
+  }
+
+  /**
+   * Resolve gemData for all gems in this group.
+   * @param {Object} registry - GemRegistry instance
+   */
+  resolveAll(registry) {
+    for (const gem of this.gems) {
+      gem.resolveGem(registry);
+    }
   }
 }

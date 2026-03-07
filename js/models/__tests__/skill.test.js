@@ -6,6 +6,7 @@ import {
   getGemLevelData,
   scaleGemQuality,
 } from '../skill.js';
+import { GemRegistry } from '../../data/gem-registry.js';
 
 describe('GemInstance', () => {
   it('creates with defaults', () => {
@@ -150,5 +151,88 @@ describe('scaleGemQuality', () => {
 
   it('handles negative quality', () => {
     expect(scaleGemQuality(10, -5, 1)).toBeCloseTo(5);
+  });
+});
+
+const TEST_GEMS = {
+  'Metadata/Items/Gems/SkillGemFireball': {
+    name: 'Fireball', gameId: 'Metadata/Items/Gems/SkillGemFireball',
+    variantId: 'Fireball', grantedEffectId: 'Fireball',
+    tags: { intelligence: true, grants_active_skill: true, spell: true },
+    reqStr: 0, reqDex: 0, reqInt: 100, naturalMaxLevel: 20,
+  },
+  'Metadata/Items/Gems/SupportGemSpellEcho': {
+    name: 'Spell Echo Support', gameId: 'Metadata/Items/Gems/SupportGemSpellEcho',
+    variantId: 'SpellEcho', grantedEffectId: 'SupportSpellEcho',
+    tags: { intelligence: true, support: true },
+    reqStr: 0, reqDex: 0, reqInt: 100, naturalMaxLevel: 20,
+  },
+};
+
+describe('GemInstance resolution', () => {
+  const registry = new GemRegistry(TEST_GEMS);
+
+  it('resolves by gemId', () => {
+    const gem = new GemInstance({ name: '', gemId: 'Metadata/Items/Gems/SkillGemFireball' });
+    gem.resolveGem(registry);
+    expect(gem.gemData).not.toBeNull();
+    expect(gem.gemData.name).toBe('Fireball');
+    expect(gem.name).toBe('Fireball');
+  });
+
+  it('resolves by skillId', () => {
+    const gem = new GemInstance({ name: '', skillId: 'Fireball' });
+    gem.resolveGem(registry);
+    expect(gem.gemData).not.toBeNull();
+    expect(gem.gemData.name).toBe('Fireball');
+  });
+
+  it('resolves by name', () => {
+    const gem = new GemInstance({ name: 'Fireball' });
+    gem.resolveGem(registry);
+    expect(gem.gemData).not.toBeNull();
+    expect(gem.gemData.grantedEffectId).toBe('Fireball');
+  });
+
+  it('sets gemData to null for unknown', () => {
+    const gem = new GemInstance({ name: 'UnknownGem123' });
+    gem.resolveGem(registry);
+    expect(gem.gemData).toBeNull();
+  });
+});
+
+describe('SkillGroup resolution', () => {
+  const registry = new GemRegistry(TEST_GEMS);
+
+  it('resolves all gems', () => {
+    const group = new SkillGroup();
+    group.addGem({ name: 'Fireball' });
+    group.addGem({ name: 'Spell Echo Support' });
+    group.resolveAll(registry);
+    expect(group.gems[0].gemData.name).toBe('Fireball');
+    expect(group.gems[1].gemData.name).toBe('Spell Echo Support');
+  });
+});
+
+describe('SkillGroup new fields', () => {
+  it('has mainActiveSkill default 1', () => {
+    expect(new SkillGroup().mainActiveSkill).toBe(1);
+  });
+  it('has includeInFullDPS default false', () => {
+    expect(new SkillGroup().includeInFullDPS).toBe(false);
+  });
+  it('accepts source', () => {
+    expect(new SkillGroup({ source: 'ItemGranted' }).source).toBe('ItemGranted');
+  });
+});
+
+describe('GemInstance new fields', () => {
+  it('has gemId and skillId', () => {
+    const gem = new GemInstance({ name: 'Test', gemId: 'some/id', skillId: 'TestSkill' });
+    expect(gem.gemId).toBe('some/id');
+    expect(gem.skillId).toBe('TestSkill');
+  });
+  it('has count default 1', () => {
+    expect(new GemInstance({ name: 'Test' }).count).toBe(1);
   });
 });
