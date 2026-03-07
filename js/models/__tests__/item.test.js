@@ -6,6 +6,7 @@ import {
   getCatalystScalar,
   RARITY,
 } from '../item.js';
+import { BaseTypeRegistry } from '../../data/base-types.js';
 
 describe('RARITY', () => {
   it('has expected values', () => {
@@ -231,5 +232,90 @@ Base
 --------
 Sockets: R-G-B-R`);
     expect(item.numSockets()).toBe(4);
+  });
+});
+
+describe('Item with base resolution', () => {
+  const registry = new BaseTypeRegistry();
+
+  it('resolves weapon base stats', () => {
+    const item = new Item(`Rarity: Rare
+Havoc Bite
+Rusted Sword
+--------
+Quality: +20%
+--------
+Adds 10 to 20 Physical Damage
+15% increased Attack Speed`);
+    item.resolveBase(registry);
+    expect(item.baseData).toBeDefined();
+    expect(item.baseData.weapon).toBeDefined();
+    expect(item.baseData.weapon.PhysicalMin).toBe(4);
+  });
+
+  it('computes weapon DPS with quality and flat phys', () => {
+    const item = new Item(`Rarity: Rare
+Havoc Bite
+Rusted Sword
+--------
+Quality: +20%
+--------
+Adds 10 to 20 Physical Damage`);
+    item.resolveBase(registry);
+    item.buildModList();
+    expect(item.weaponData).toBeDefined();
+    // Base 4-9 + flat 10-20 = 14-29
+    // Quality 20%: * 1.2 -> round(16.8)=17, round(34.8)=35
+    // Attack rate: 1.55 (no local speed mod)
+    // DPS: (17+35)/2 * 1.55 = 40.3
+    expect(item.weaponData.PhysicalMin).toBe(17);
+    expect(item.weaponData.PhysicalMax).toBe(35);
+    expect(item.weaponData.AttackRate).toBeCloseTo(1.55, 2);
+    expect(item.weaponData.PhysicalDPS).toBeCloseTo(40.3, 0);
+  });
+
+  it('computes weapon attack speed with local inc', () => {
+    const item = new Item(`Rarity: Rare
+Test
+Rusted Sword
+--------
+15% increased Attack Speed`);
+    item.resolveBase(registry);
+    item.buildModList();
+    // 1.55 * (1 + 15/100) = 1.55 * 1.15 = 1.7825 -> round to 1.78
+    expect(item.weaponData.AttackRate).toBeCloseTo(1.78, 2);
+  });
+
+  it('computes armour values with quality', () => {
+    const item = new Item(`Rarity: Rare
+Glyph Ward
+Plate Vest
+--------
+Quality: +20%
+--------
+50% increased Armour`);
+    item.resolveBase(registry);
+    item.buildModList();
+    expect(item.armourData).toBeDefined();
+    // Base avg: (19+27)/2 = 23
+    // Quality 20%: 23 * 1.2 = 27.6
+    // Local 50% inc: 27.6 * 1.5 = 41.4 -> round = 41
+    expect(item.armourData.Armour).toBe(41);
+  });
+
+  it('returns null weaponData for non-weapon items', () => {
+    const item = new Item(`Rarity: Normal
+Iron Ring`);
+    item.resolveBase(registry);
+    item.buildModList();
+    expect(item.weaponData).toBeNull();
+  });
+
+  it('resolves base from name when baseName not set (normal items)', () => {
+    const item = new Item(`Rarity: Normal
+Rusted Sword`);
+    item.resolveBase(registry);
+    expect(item.baseData).toBeDefined();
+    expect(item.baseData.weapon).toBeDefined();
   });
 });

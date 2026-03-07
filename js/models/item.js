@@ -1,6 +1,9 @@
 // PoBWeb - Item Model (port of Classes/Item.lua)
 // Parses game item text into structured data.
 
+import { parseMod } from './mod-parser.js';
+import { round } from '../engine/utils.js';
+
 export const RARITY = {
   NORMAL: 'NORMAL',
   MAGIC: 'MAGIC',
@@ -225,5 +228,164 @@ export class Item {
       groupCounts[s.group] = (groupCounts[s.group] || 0) + 1;
     }
     return Math.max(...Object.values(groupCounts));
+  }
+
+  /**
+   * Look up this item's base type in the registry and store it.
+   * @param {import('../data/base-types.js').BaseTypeRegistry} registry
+   */
+  resolveBase(registry) {
+    this.baseData = registry.get(this.baseName || this.name);
+  }
+
+  /**
+   * Parse all mod lines and compute local weapon/armour stats.
+   * Must call resolveBase() first.
+   */
+  buildModList() {
+    this.weaponData = null;
+    this.armourData = null;
+    this.parsedMods = [];
+
+    if (!this.baseData) return;
+
+    // Parse all mod lines from every source
+    const allModLines = [
+      ...this.implicitModLines,
+      ...this.explicitModLines,
+      ...this.enchantModLines,
+      ...this.crucibleModLines,
+    ];
+    for (const line of allModLines) {
+      const mods = parseMod(line);
+      this.parsedMods.push(...mods);
+    }
+
+    if (this.baseData.weapon) {
+      this._calcWeapon();
+    }
+    if (this.baseData.armour) {
+      this._calcArmour();
+    }
+  }
+
+  /** @private Compute local weapon stats (damage, attack rate, crit). */
+  _calcWeapon() {
+    const weapon = this.baseData.weapon;
+    const quality = this.quality || 0;
+
+    const DAMAGE_TYPES = ['Physical', 'Fire', 'Cold', 'Lightning', 'Chaos'];
+
+    // Collect local flat damage (BASE with flags===0) and local INC mods
+    let physInc = 0;
+    let attackSpeedInc = 0;
+    let critInc = 0;
+    const flatDmg = {};
+    for (const type of DAMAGE_TYPES) {
+      flatDmg[`${type}Min`] = 0;
+      flatDmg[`${type}Max`] = 0;
+    }
+
+    for (const mod of this.parsedMods) {
+      // Local flat damage: BASE type with flags===0 for *Min/*Max names
+      if (mod.type === 'BASE' && mod.flags === 0) {
+        for (const type of DAMAGE_TYPES) {
+          if (mod.name === `${type}Min`) flatDmg[`${type}Min`] += mod.value;
+          if (mod.name === `${type}Max`) flatDmg[`${type}Max`] += mod.value;
+        }
+      }
+      // Local % increased Physical Damage (INC, flags===0)
+      if (mod.type === 'INC' && mod.name === 'PhysicalDamage' && mod.flags === 0) {
+        physInc += mod.value;
+      }
+      // Local attack speed (INC with Attack flag)
+      if (mod.type === 'INC' && mod.name === 'Speed' && (mod.flags & 0x00000001) !== 0) {
+        attackSpeedInc += mod.value;
+      }
+      // Local crit chance (INC, flags===0)
+      if (mod.type === 'INC' && mod.name === 'CritChance' && mod.flags === 0) {
+        critInc += mod.value;
+      }
+    }
+
+    const data = {};
+    let totalDPS = 0;
+
+    for (const type of DAMAGE_TYPES) {
+      const baseMin = (weapon[`${type}Min`] || 0) + flatDmg[`${type}Min`];
+      const baseMax = (weapon[`${type}Max`] || 0) + flatDmg[`${type}Max`];
+
+      let finalMin, finalMax;
+      if (type === 'Physical') {
+        // Quality and physInc are multiplicative
+        finalMin = round(baseMin * (1 + physInc / 100) * (1 + quality / 100));
+        finalMax = round(baseMax * (1 + physInc / 100) * (1 + quality / 100));
+      } else {
+        // Non-physical: no quality scaling, no local inc (just flat)
+        finalMin = round(baseMin);
+        finalMax = round(baseMax);
+      }
+
+      if (finalMin > 0 || finalMax > 0) {
+        data[`${type}Min`] = finalMin;
+        data[`${type}Max`] = finalMax;
+        const typeDPS = (finalMin + finalMax) / 2 * round(weapon.AttackRateBase * (1 + attackSpeedInc / 100), 2);
+        data[`${type}DPS`] = typeDPS;
+        totalDPS += typeDPS;
+      }
+    }
+
+    data.AttackRate = round(weapon.AttackRateBase * (1 + attackSpeedInc / 100), 2);
+    data.CritChance = round(weapon.CritChanceBase * (1 + critInc / 100), 2);
+    data.Range = weapon.Range || 0;
+    data.TotalDPS = totalDPS;
+
+    this.weaponData = data;
+  }
+
+  /** @private Compute local armour stats (armour, evasion, ES, block). */
+  _calcArmour() {
+    const armour = this.baseData.armour;
+    const quality = this.quality || 0;
+
+    // Collect local INC mods for defences
+    let armourInc = 0;
+    let evasionInc = 0;
+    let esInc = 0;
+
+    for (const mod of this.parsedMods) {
+      if (mod.type === 'INC' && mod.flags === 0) {
+        if (mod.name === 'Armour') armourInc += mod.value;
+        if (mod.name === 'Evasion') evasionInc += mod.value;
+        if (mod.name === 'EnergyShield') esInc += mod.value;
+      }
+    }
+
+    const data = {};
+
+    // Armour
+    if (armour.ArmourBaseMin !== undefined || armour.ArmourBaseMax !== undefined) {
+      const base = ((armour.ArmourBaseMin || 0) + (armour.ArmourBaseMax || 0)) / 2;
+      data.Armour = round(base * (1 + quality / 100) * (1 + armourInc / 100));
+    }
+
+    // Evasion
+    if (armour.EvasionBaseMin !== undefined || armour.EvasionBaseMax !== undefined) {
+      const base = ((armour.EvasionBaseMin || 0) + (armour.EvasionBaseMax || 0)) / 2;
+      data.Evasion = round(base * (1 + quality / 100) * (1 + evasionInc / 100));
+    }
+
+    // Energy Shield
+    if (armour.EnergyShieldBaseMin !== undefined || armour.EnergyShieldBaseMax !== undefined) {
+      const base = ((armour.EnergyShieldBaseMin || 0) + (armour.EnergyShieldBaseMax || 0)) / 2;
+      data.EnergyShield = round(base * (1 + quality / 100) * (1 + esInc / 100));
+    }
+
+    // Block chance (flat, no scaling)
+    if (armour.BlockChance !== undefined) {
+      data.BlockChance = armour.BlockChance;
+    }
+
+    this.armourData = data;
   }
 }
