@@ -134,9 +134,11 @@ export function parseItemText(raw) {
   }
 
   // Parse remaining lines
-  let inSection = false;
   let foundImplicit = false;
   let afterSeparator = false;
+  let implicitCount = -1; // -1 = not using PoB Implicits: N format
+  let implicitsSeen = 0;
+  let inModSection = false; // true once we've entered the mod area
 
   while (i < rawLines.length) {
     const line = rawLines[i];
@@ -156,6 +158,9 @@ export function parseItemText(raw) {
     if (line === 'Requirements:') continue;
     if (line === 'Unidentified') continue;
 
+    // PoB metadata lines (skip)
+    if (/^(Crafted|Prefix|Suffix|UniqueID|Cluster Jewel Skill|Cluster Jewel Node Count|Has Alt Variant|Selected Variant|Source|League|LevelReq|Variant|ArmourData|WeaponData):/.test(line)) continue;
+
     // Check for spec lines
     const specMatch = line.match(/^([A-Za-z ]+):\s+(.+)$/);
     if (specMatch) {
@@ -164,12 +169,19 @@ export function parseItemText(raw) {
         item.quality = specToNumber(specVal);
         continue;
       }
-      if (specName === 'Item Level') {
+      if (specName === 'Item Level' || specName === 'ItemLevel') {
         item.itemLevel = specToNumber(specVal);
         continue;
       }
       if (specName === 'Sockets') {
         item.sockets = parseSockets(specVal);
+        continue;
+      }
+      // PoB format: "Implicits: N" — next N lines are implicits, rest are explicits
+      if (specName === 'Implicits') {
+        implicitCount = parseInt(specVal, 10) || 0;
+        implicitsSeen = 0;
+        inModSection = true;
         continue;
       }
     }
@@ -181,7 +193,7 @@ export function parseItemText(raw) {
       continue;
     }
 
-    // Check for mod type tags
+    // In-game format: mod type tags in parentheses
     if (line.includes('(implicit)')) {
       item.implicitModLines.push(line.replace(/\s*\(implicit\)/, ''));
       foundImplicit = true;
@@ -196,10 +208,21 @@ export function parseItemText(raw) {
       continue;
     }
 
-    // Any other line after implicits is an explicit mod
+    // PoB "Implicits: N" format: count-based implicit/explicit split
+    if (implicitCount >= 0 && inModSection) {
+      if (implicitsSeen < implicitCount) {
+        item.implicitModLines.push(line);
+        implicitsSeen++;
+      } else {
+        item.explicitModLines.push(line);
+      }
+      continue;
+    }
+
+    // In-game format: lines after separator or after (implicit) tags are explicit mods
     if (afterSeparator || foundImplicit) {
-      // Skip non-mod lines
-      if (/^\d+ to \d+ \w+ Damage$/.test(line)) continue; // base damage line
+      // Skip non-mod property lines
+      if (/^\d+ to \d+ \w+ Damage$/.test(line)) continue;
       if (/^(Armour|Evasion|Energy Shield|Ward):/.test(line)) continue;
       if (/^(Physical Damage|Elemental Damage|Critical Strike Chance|Attacks per Second):/.test(line)) continue;
 

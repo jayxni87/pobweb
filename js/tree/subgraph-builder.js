@@ -53,8 +53,9 @@ export function buildSubgraph(parsedJewel, parentSocket, treeData, clusterData, 
   const skill = jewelDef.skills[parsedJewel.clusterJewelSkill];
   if (!skill) return null;
 
-  // Compute subgraph base ID (Lua: id = 0x10000 + shifts for large/medium index)
-  let id = 0x10000;
+  // Compute subgraph base ID (Lua: id = id or 0x10000, then accumulate)
+  // For nested clusters, the parent socket carries the accumulated base ID
+  let id = parentSocket._subgraphBaseId || 0x10000;
   if (ej.size === 2) {
     id |= (ej.index << 6);
   } else if (ej.size === 1) {
@@ -110,13 +111,14 @@ export function buildSubgraph(parsedJewel, parentSocket, treeData, clusterData, 
   const indicies = {};
 
   // Pass 1: Sockets (Lua lines 1789-1798)
+  // Lua uses real tree socket nodes from the proxy group (for correct IDs and expansionJewel)
+  const GET_JEWELS = [0, 2, 1]; // Lua: getJewels = { 0, 2, 1 }
   if (jewelDef.size === 'Large' && socketCount === 1) {
-    // Large clusters with 1 socket always place it at index 6
-    indicies[6] = makeSocketInfo(jewelDef);
+    // Large clusters with 1 socket always place it at index 6, jewelIndex 1
+    indicies[6] = makeSocketInfo(jewelDef, treeData, proxyGroup, 1, id);
   } else {
-    const getJewels = [0, 2, 1]; // Lua: socket finder indices
     for (let i = 0; i < socketCount && i < jewelDef.socketIndicies.length; i++) {
-      indicies[jewelDef.socketIndicies[i]] = makeSocketInfo(jewelDef);
+      indicies[jewelDef.socketIndicies[i]] = makeSocketInfo(jewelDef, treeData, proxyGroup, GET_JEWELS[i], id);
     }
   }
 
@@ -197,7 +199,8 @@ export function buildSubgraph(parsedJewel, parentSocket, treeData, clusterData, 
 
   for (const posIdx of Object.keys(indicies).map(Number).sort((a, b) => a - b)) {
     const info = indicies[posIdx];
-    const thisNodeId = nodeId + posIdx; // Lua: nodeId + nodeIndex
+    // Lua: sockets use real tree socket ID, others use nodeId + posIdx
+    const thisNodeId = info.realSocketId || (nodeId + posIdx);
 
     // Compute position using translated oidx (Lua: ProcessNode)
     const treeOidx = translatedIndicies[posIdx];
@@ -229,12 +232,14 @@ export function buildSubgraph(parsedJewel, parentSocket, treeData, clusterData, 
 
     if (info.isSocket) {
       node.type = 'jewel';
-      node.expansionJewel = {
+      node.expansionJewel = info.realExpansionJewel || {
         size: info.socketSize,
         index: ej.index || 0,
         proxy: String(ej.proxy),
         parent: String(parentSocket.id),
       };
+      // Store accumulated base ID for nested subgraph calls
+      node._subgraphBaseId = info.subgraphBaseId;
     }
 
     nodes.push(node);
@@ -277,14 +282,19 @@ export function buildSubgraph(parsedJewel, parentSocket, treeData, clusterData, 
   };
 }
 
-function makeSocketInfo(jewelDef) {
+function makeSocketInfo(jewelDef, treeData, proxyGroup, jewelIndex, baseId) {
+  // Find the real tree socket from the proxy group (Lua: findSocket(proxyGroup, jewelIndex))
+  const realSocket = findSocketInGroup(treeData, proxyGroup, jewelIndex);
   return {
     type: 'jewel',
-    name: jewelDef.sizeIndex === 2 ? 'Medium Jewel Socket' : 'Small Jewel Socket',
+    name: realSocket?.name || (jewelDef.sizeIndex === 2 ? 'Medium Jewel Socket' : 'Small Jewel Socket'),
     stats: [],
     icon: null,
     isSocket: true,
     socketSize: jewelDef.sizeIndex === 2 ? 1 : 0,
+    realSocketId: realSocket?.id || null,
+    realExpansionJewel: realSocket?.expansionJewel || null,
+    subgraphBaseId: baseId,
   };
 }
 
