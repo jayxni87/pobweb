@@ -3,6 +3,7 @@ js/data/*
 !js/data/base-types.js
 !js/data/cluster-jewels.json
 !js/data/skills.json
+!js/data/skill-stat-map.json
 !js/data/__tests__/
 !js/data/tree/
 js/data/tree/*
