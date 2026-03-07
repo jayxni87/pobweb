@@ -38,11 +38,18 @@ body {
   grid-template-rows: 42px 32px 1fr 22px;
   grid-template-columns: 1fr 240px;
   grid-template-areas:
-    "menu   menu"
-    "tabs   tabs"
+    "menu    menu"
+    "tabs    tabs"
     "content sidebar"
-    "status status";
+    "status  status";
   height: 100vh;
+}
+
+/* Permanent tree layer — always visible behind tab content */
+#tree-layer {
+  grid-area: content;
+  position: relative;
+  z-index: 0;
 }
 
 /* ─── Menu Bar ─── */
@@ -123,12 +130,27 @@ body {
   border-bottom-color: var(--accent);
 }
 
-/* ─── Tab Content ─── */
+/* ─── Tab Content (sidebar overlay over tree) ─── */
 #tab-content {
   grid-area: content;
-  overflow: auto;
+  justify-self: start;
   position: relative;
-  background: var(--bg-primary);
+  z-index: 1;
+  width: 480px;
+  max-width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: rgba(10, 10, 15, 0.92);
+  border-right: 1px solid var(--border);
+  transition: transform 0.2s ease, opacity 0.15s;
+}
+
+/* When on Tree tab, slide sidebar out */
+#tab-content.tree-active {
+  transform: translateX(-100%);
+  pointer-events: none;
+  opacity: 0;
+  overflow: hidden;
 }
 
 /* ─── Stat Sidebar ─── */
@@ -206,10 +228,9 @@ body {
 .btn-primary:hover { background: #3a5a8a; }
 .btn-sm { padding: 2px 10px; font-size: 11px; }
 
-/* ─── Tree Tab ─── */
-.tree-tab {
-  position: absolute;
-  inset: 0;
+/* ─── Tree Layer (always visible) ─── */
+#tree-layer {
+  overflow: hidden;
 }
 
 #tree-canvas {
@@ -249,17 +270,7 @@ body {
 .tree-search:focus { border-color: var(--accent); outline: none; }
 .tree-search-count { color: var(--text-muted); font-size: 11px; }
 
-.tree-info {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  color: var(--text-muted);
-}
-
-.tree-info p { margin: 4px 0; }
-.tree-hint { font-size: 11px; }
+/* .tree-info styles moved to tree.css */
 
 .tree-zoom-controls {
   position: absolute;
@@ -274,16 +285,18 @@ body {
 
 /* ─── Panel Layout (Skills, Items) ─── */
 .panel-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr;
+  display: flex;
+  flex-direction: column;
   height: 100%;
 }
 
 .panel-sidebar {
   background: var(--bg-secondary);
-  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  max-height: 45%;
+  overflow-y: auto;
 }
 
 .panel-header {
@@ -300,6 +313,8 @@ body {
 .panel-list { flex: 1; overflow-y: auto; }
 
 .list-item {
+  display: flex;
+  align-items: center;
   padding: 6px 10px;
   cursor: pointer;
   border-bottom: 1px solid var(--border);
@@ -320,7 +335,7 @@ body {
   font-size: 11px;
 }
 
-.panel-main { padding: 12px 16px; }
+.panel-main { padding: 12px 16px; flex: 1; overflow-y: auto; }
 
 .panel-placeholder {
   display: flex;
@@ -331,11 +346,178 @@ body {
   font-size: 13px;
 }
 
+/* ─── Items Tab ─── */
+.items-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 0;
+}
+
+/* Gear grid — paper doll layout */
+.gear-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-rows: repeat(4, auto);
+  grid-template-areas:
+    "weap1 helm  helm  amulet"
+    "weap1 body  body  ring1"
+    "weap2 gloves boots ring2"
+    "weap2 .     .     belt";
+  gap: 4px;
+  padding: 12px;
+  justify-items: center;
+  align-items: start;
+}
+
+/* Individual gear slot */
+.gear-slot {
+  width: 100%;
+  min-height: 56px;
+  background: rgba(20, 20, 35, 0.85);
+  border: 2px solid #333;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  transition: border-color 0.15s, background 0.12s;
+  position: relative;
+}
+
+.gear-slot:hover { background: rgba(30, 30, 50, 0.95); border-color: #556; }
+.gear-slot-selected { border-color: var(--accent) !important; background: rgba(30, 40, 70, 0.9); }
+
+/* Slot label */
+.gear-slot-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.gear-slot-equipped .gear-slot-label { color: var(--text-secondary); }
+
+/* Item name inside slot */
+.gear-slot-name {
+  font-size: 10px;
+  text-align: center;
+  line-height: 1.2;
+  margin-top: 2px;
+  word-break: break-word;
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Rarity colors on slot border + name */
+.rarity-slot-unique { border-color: #af6025; }
+.rarity-slot-unique .gear-slot-name { color: #af6025; }
+.rarity-slot-rare { border-color: #cc6; }
+.rarity-slot-rare .gear-slot-name { color: #cc6; }
+.rarity-slot-magic { border-color: #88f; }
+.rarity-slot-magic .gear-slot-name { color: #88f; }
+.rarity-slot-normal { border-color: #888; }
+.rarity-slot-normal .gear-slot-name { color: #c8c8c8; }
+.rarity-slot-relic { border-color: #60c060; }
+.rarity-slot-relic .gear-slot-name { color: #60c060; }
+
+/* Item detail below grid */
+.gear-detail {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* Hover tooltip (positioned fixed on body) */
+.gear-tooltip {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  max-width: 420px;
+}
+
+/* PoE-style item tooltip */
+.item-tooltip {
+  max-width: 420px;
+  background: #111;
+  border: 1px solid #444;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #c8c8c8;
+}
+
+/* Rarity border colors */
+.rarity-border-unique { border-color: #af6025; }
+.rarity-border-rare { border-color: #ff7; }
+.rarity-border-magic { border-color: #8888ff; }
+.rarity-border-normal { border-color: #888; }
+.rarity-border-relic { border-color: #60c060; }
+
+/* Header */
+.tt-header {
+  text-align: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid #444;
+}
+.tt-name { font-size: 14px; font-weight: 600; }
+.tt-base { font-size: 13px; }
+
+.rarity-bg-unique .tt-name, .rarity-bg-unique .tt-base { color: #af6025; }
+.rarity-bg-rare .tt-name, .rarity-bg-rare .tt-base { color: #ff7; }
+.rarity-bg-magic .tt-name, .rarity-bg-magic .tt-base { color: #8888ff; }
+.rarity-bg-normal .tt-name, .rarity-bg-normal .tt-base { color: #c8c8c8; }
+.rarity-bg-relic .tt-name, .rarity-bg-relic .tt-base { color: #60c060; }
+
+/* Sections separated by lines */
+.tt-section {
+  padding: 5px 12px;
+  border-bottom: 1px solid #333;
+}
+.tt-section:last-child { border-bottom: none; }
+
+/* Properties (quality, armour, damage, etc.) */
+.tt-prop { padding: 1px 0; }
+.tt-prop-name { color: #827a6c; }
+.tt-prop-aug { color: #88f; }
+.tt-req-val { color: #c8c8c8; }
+
+/* Damage type colors */
+.tt-dmg-fire { color: #f55; }
+.tt-dmg-cold { color: #66f; }
+.tt-dmg-lightning { color: #fd0; }
+.tt-dmg-chaos { color: #d0a0f0; }
+
+/* Mod lines */
+.tt-mod { padding: 1px 0; }
+.tt-mod-implicit { color: #8888ff; }
+.tt-mod-explicit { color: #8cf; }
+.tt-mod-crafted { color: #b4b4ff; }
+.tt-mod-enchant { color: #b4b4ff; }
+.tt-mod-crucible { color: #e88; }
+
+/* Status flags */
+.tt-corrupted { color: #d20000; display: block; text-align: center; }
+.tt-mirrored { color: #8cf; display: block; text-align: center; }
+.tt-fractured { color: #a29162; display: block; text-align: center; }
+.tt-synthesised { color: #c8c8c8; display: block; text-align: center; }
+
+/* PoB DPS summary (not in-game, PoB addition) */
+.tt-dps-summary { color: #827a6c; font-size: 12px; }
+.tt-dps-val { color: #c8c8c8; }
+.tt-dps-total { color: var(--accent); font-weight: 600; }
+
 /* ─── Calcs Tab ─── */
 .calcs-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 12px 16px;
 }
 
@@ -366,9 +548,9 @@ body {
 
 /* ─── Config Tab ─── */
 .config-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 12px 16px;
 }
 
@@ -455,14 +637,15 @@ body {
 
 /* ─── Notes Tab ─── */
 .notes-layout {
-  position: absolute;
-  inset: 0;
   padding: 8px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .notes-textarea {
   width: 100%;
-  height: 100%;
+  flex: 1;
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 3px;
@@ -515,3 +698,43 @@ body {
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
 ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #4a4a6e; }
+
+/* ─── Skills Tab ─── */
+.skill-star { cursor: pointer; font-size: 14px; margin-right: 4px; color: var(--text-muted); }
+.skill-star.active { color: var(--gold); }
+.skill-star:hover { color: var(--gold-dim); }
+.skill-group-enable { margin-right: 4px; }
+.skill-group-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skill-gem-count { color: var(--text-muted); font-size: 11px; margin-left: 4px; }
+
+.skill-editor-header {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.skill-editor-header label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-secondary); }
+
+.gem-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.gem-table th { text-align: left; padding: 4px 6px; color: var(--text-muted); font-size: 11px; border-bottom: 1px solid var(--border); }
+.gem-table td { padding: 3px 6px; border-bottom: 1px solid var(--border); }
+.gem-row.gem-support .gem-name-input { color: #6a9fcc; }
+
+.gem-name-wrapper { position: relative; }
+.gem-name-input { width: 200px; }
+.gem-dropdown {
+  position: absolute; top: 100%; left: 0; z-index: 100;
+  background: var(--bg-secondary); border: 1px solid var(--border-light);
+  max-height: 200px; overflow-y: auto; width: 250px;
+}
+.gem-dropdown-item { padding: 4px 8px; cursor: pointer; font-size: 12px; }
+.gem-dropdown-item:hover { background: var(--bg-tertiary); }
+
+.input-sm { background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary); padding: 2px 4px; font-size: 12px; border-radius: 2px; }
+.input-sm:focus { border-color: var(--accent); outline: none; }
+select.input-sm { padding: 2px 2px; }
+.gem-level, .gem-quality { width: 50px; }
+
+.btn-danger { color: #e05030; }
+.btn-danger:hover { background: rgba(224, 80, 48, 0.15); }
+.btn-xs { padding: 1px 4px; font-size: 11px; }
+
+#add-gem { margin-top: 8px; }

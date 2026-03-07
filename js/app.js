@@ -20,6 +20,11 @@ import { parseClusterJewel } from './models/cluster-jewel.js';
 import { buildSubgraph } from './tree/subgraph-builder.js';
 import { Item } from './models/item.js';
 import { BaseTypeRegistry } from './data/base-types.js';
+import { GemRegistry } from './data/gem-registry.js';
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 const TAB_NAMES = ['Tree', 'Skills', 'Items', 'Calcs', 'Config', 'Import', 'Notes'];
 const TREE_DATA_URL = 'js/data/tree/3_25.json';
@@ -55,10 +60,15 @@ class PoBApp {
     // Item state
     this.baseTypeRegistry = null;
     this.resolvedItems = {};  // slot name → Item instance
+
+    // Skills state
+    this.gemRegistry = null;
+    this._selectedSkillGroup = null; // index into this.build.skills
   }
 
-  init() {
+  async init() {
     this.baseTypeRegistry = new BaseTypeRegistry();
+    this._initTreeLayer();
     this._initMenuBar();
     this._initTabs();
     this._initSidebar();
@@ -66,6 +76,40 @@ class PoBApp {
     this._switchTab('Tree');
     this._runCalc();
     this._loadTreeData();
+    this._loadGemRegistry();
+  }
+
+  async _loadGemRegistry() {
+    try {
+      const resp = await fetch('js/data/gems.json');
+      if (!resp.ok) throw new Error(`Gems HTTP ${resp.status}`);
+      this.gemRegistry = new GemRegistry(await resp.json());
+    } catch (e) {
+      console.error('Failed to load gem registry:', e);
+    }
+  }
+
+  _initTreeLayer() {
+    const layer = document.getElementById('tree-layer');
+    if (!layer) return;
+    layer.innerHTML = `
+      <canvas id="tree-canvas" style="display:block;width:100%;height:100%;"></canvas>
+      <div class="tree-overlay">
+        <div class="tree-controls">
+          <input type="text" class="tree-search" placeholder="Search passive tree..." id="tree-search">
+          <span class="tree-search-count" id="tree-search-count"></span>
+        </div>
+        <div class="tree-info">
+          <div class="tree-loading-spinner"></div>
+          <p class="tree-hint">Loading tree data...</p>
+        </div>
+        <div class="tree-zoom-controls">
+          <button class="btn" id="zoom-in">+</button>
+          <button class="btn" id="zoom-out">&minus;</button>
+          <button class="btn" id="zoom-reset">Reset</button>
+        </div>
+      </div>
+    `;
   }
 
   async _loadTreeData() {
@@ -100,10 +144,8 @@ class PoBApp {
       this.treeAllocation = new TreeAllocation(this.treeData, classId >= 0 ? classId : 0);
       this.treeSearch = new TreeSearch(this.treeData);
 
-      // If we're on the tree tab, initialize the renderer
-      if (this.activeTab === 'Tree') {
-        this._initTreeRenderer();
-      }
+      // Always initialize the renderer (tree is always visible)
+      this._initTreeRenderer();
 
       this._updateStatusBar();
     } catch (e) {
@@ -119,8 +161,9 @@ class PoBApp {
     // Clean up previous renderer
     this._destroyTreeRenderer();
 
-    // Size canvas
-    const rect = this.tabContent.getBoundingClientRect();
+    // Size canvas to tree layer
+    const treeLayer = document.getElementById('tree-layer');
+    const rect = treeLayer ? treeLayer.getBoundingClientRect() : canvas.parentElement.getBoundingClientRect();
     canvas.width = rect.width;
     canvas.height = rect.height;
 
@@ -208,8 +251,9 @@ class PoBApp {
 
       // Handle resize
       this._resizeHandler = () => {
-        const r = this.tabContent.getBoundingClientRect();
-        if (this.treeRenderer) {
+        const tl = document.getElementById('tree-layer');
+        if (tl && this.treeRenderer) {
+          const r = tl.getBoundingClientRect();
           this.treeRenderer.resize(r.width, r.height);
         }
       };
@@ -577,9 +621,7 @@ class PoBApp {
     const classId = this.treeData.classNameToId(this.className);
     if (classId < 0) return;
     this.treeAllocation = new TreeAllocation(this.treeData, classId);
-    if (this.activeTab === 'Tree') {
-      this._rebuildTreeInstances();
-    }
+    this._rebuildTreeInstances();
     this._updateStatusBar();
   }
 
@@ -602,13 +644,7 @@ class PoBApp {
   }
 
   _switchTab(tabName) {
-    const prevTab = this.activeTab;
     this.activeTab = tabName;
-
-    // Clean up tree renderer when leaving tree tab
-    if (prevTab === 'Tree' && tabName !== 'Tree') {
-      this._destroyTreeRenderer();
-    }
 
     // Update tab bar
     const tabbar = document.getElementById('tab-bar');
@@ -618,12 +654,22 @@ class PoBApp {
       }
     }
 
+    // Hide gear tooltip on any tab switch
+    const gearTt = document.getElementById('gear-tooltip');
+    if (gearTt) gearTt.style.display = 'none';
+
     if (!this.tabContent) return;
 
+    // Tree is always visible — toggle overlay visibility
+    if (tabName === 'Tree') {
+      this.tabContent.classList.add('tree-active');
+      this.tabContent.innerHTML = '';
+      return;
+    }
+
+    this.tabContent.classList.remove('tree-active');
+
     switch (tabName) {
-      case 'Tree':
-        this._renderTreeTab();
-        break;
       case 'Skills':
         this._renderSkillsTab();
         break;
@@ -646,33 +692,45 @@ class PoBApp {
   }
 
   _renderTreeTab() {
-    this.tabContent.innerHTML = `
-      <div class="tree-tab">
-        <canvas id="tree-canvas"></canvas>
-        <div class="tree-overlay">
-          <div class="tree-controls">
-            <input type="text" class="tree-search" placeholder="Search passive tree..." id="tree-search">
-            <span class="tree-search-count" id="tree-search-count"></span>
-          </div>
-          <div class="tree-info">
-            <div class="tree-loading-spinner"></div>
-            <p class="tree-hint">${this._treeLoaded ? 'Loading tree assets...' : 'Loading tree data...'}</p>
-          </div>
-          <div class="tree-zoom-controls">
-            <button class="btn" id="zoom-in">+</button>
-            <button class="btn" id="zoom-out">&minus;</button>
-            <button class="btn" id="zoom-reset">Reset</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    if (this._treeLoaded) {
-      this._initTreeRenderer();
-    }
+    // Tree is always visible in #tree-layer — nothing to render here
   }
 
   _renderSkillsTab() {
+    if (!this.build) {
+      this.build = new Build();
+    }
+    const skills = this.build.skills;
+    const mainGroup = this.build.mainSocketGroup || 0;
+    const selIdx = this._selectedSkillGroup;
+
+    // Build group list HTML
+    let groupListHtml = '';
+    if (skills.length === 0) {
+      groupListHtml = '<div class="list-empty">No socket groups. Click + New to add one.</div>';
+    } else {
+      for (let i = 0; i < skills.length; i++) {
+        const g = skills[i];
+        const isMain = i === mainGroup;
+        const selected = i === selIdx ? ' selected' : '';
+        const gemCount = (g.gems || []).length;
+        const displayLabel = g.label || (g.gems?.length ? g.gems[0].name || 'Unnamed' : 'Empty group');
+        groupListHtml += `<div class="list-item${selected}" data-group-idx="${i}">` +
+          `<span class="skill-star${isMain ? ' active' : ''}" data-star-idx="${i}" title="Set as main skill group">\u2605</span>` +
+          `<input type="checkbox" class="skill-group-enable" data-enable-idx="${i}"${g.enabled !== false ? ' checked' : ''}>` +
+          `<span class="skill-group-label">${escapeHtml(displayLabel)}</span>` +
+          `<span class="skill-gem-count">${gemCount}g</span>` +
+          `</div>`;
+      }
+    }
+
+    // Build right panel HTML
+    let rightPanelHtml;
+    if (selIdx !== null && selIdx >= 0 && selIdx < skills.length) {
+      rightPanelHtml = this._renderSkillGroupEditor(selIdx, skills[selIdx]);
+    } else {
+      rightPanelHtml = '<div class="panel-placeholder">Select or create a socket group to edit gems</div>';
+    }
+
     this.tabContent.innerHTML = `
       <div class="panel-layout">
         <div class="panel-sidebar">
@@ -681,34 +739,475 @@ class PoBApp {
             <button class="btn btn-sm" id="add-group">+ New</button>
           </div>
           <div class="panel-list" id="skill-group-list">
-            <div class="list-empty">No socket groups. Click + New to add one.</div>
+            ${groupListHtml}
           </div>
         </div>
-        <div class="panel-main">
-          <div class="panel-placeholder">Select or create a socket group to edit gems</div>
+        <div class="panel-main" id="skill-editor-panel">
+          ${rightPanelHtml}
         </div>
       </div>
+    `;
+
+    this._wireSkillsTabEvents();
+  }
+
+  _renderSkillGroupEditor(idx, group) {
+    const SLOTS = ['None', 'Weapon 1', 'Weapon 2', 'Helmet', 'Body Armour', 'Gloves', 'Boots', 'Amulet', 'Ring 1', 'Ring 2', 'Belt'];
+    const slotOptions = SLOTS.map(s => {
+      const val = s === 'None' ? '' : s;
+      const selected = (group.slot || '') === val ? ' selected' : '';
+      return `<option value="${escapeHtml(val)}"${selected}>${s}</option>`;
+    }).join('');
+
+    const gems = group.gems || [];
+    let gemRowsHtml = '';
+    for (let gi = 0; gi < gems.length; gi++) {
+      const gem = gems[gi];
+      const isSupport = gem.gemData?.tags?.support || false;
+      gemRowsHtml += `<tr class="gem-row${isSupport ? ' gem-support' : ''}" data-gem-idx="${gi}">` +
+        `<td><input type="checkbox" class="gem-enable-cb" data-gem-enable="${gi}"${gem.enabled !== false ? ' checked' : ''}></td>` +
+        `<td><div class="gem-name-wrapper"><input type="text" class="input-sm gem-name-input" data-gem-name="${gi}" value="${escapeHtml(gem.name || '')}" placeholder="Type gem name..." autocomplete="off"></div></td>` +
+        `<td><input type="number" class="input-sm gem-level" data-gem-level="${gi}" value="${gem.level || 1}" min="1" max="40"></td>` +
+        `<td><input type="number" class="input-sm gem-quality" data-gem-quality="${gi}" value="${gem.quality || 0}" min="0" max="100"></td>` +
+        `<td><button class="btn btn-xs btn-danger gem-remove" data-gem-remove="${gi}" title="Remove gem">\u2715</button></td>` +
+        `</tr>`;
+    }
+
+    return `
+      <div class="skill-editor-header">
+        <label>Slot: <select class="input-sm" id="skill-slot">${slotOptions}</select></label>
+        <label>Label: <input type="text" class="input-sm" id="skill-label" value="${escapeHtml(group.label || '')}" placeholder="Group label..." style="width:120px"></label>
+        <label><input type="checkbox" id="skill-enabled"${group.enabled !== false ? ' checked' : ''}> Enabled</label>
+        <label><input type="checkbox" id="skill-fulldps"${group.includeInFullDPS ? ' checked' : ''}> Include in Full DPS</label>
+        <button class="btn btn-sm btn-danger" id="delete-group">Delete Group</button>
+      </div>
+      <table class="gem-table">
+        <thead><tr><th></th><th>Gem</th><th>Level</th><th>Qual</th><th></th></tr></thead>
+        <tbody id="gem-table-body">${gemRowsHtml}</tbody>
+      </table>
+      <button class="btn btn-sm" id="add-gem">+ Add Gem</button>
     `;
   }
 
+  _wireSkillsTabEvents() {
+    const skills = this.build.skills;
+
+    // Group list item clicks (select group)
+    const groupList = document.getElementById('skill-group-list');
+    if (groupList) {
+      groupList.addEventListener('click', (e) => {
+        // Star click
+        const starEl = e.target.closest('[data-star-idx]');
+        if (starEl) {
+          e.stopPropagation();
+          this.build.mainSocketGroup = parseInt(starEl.dataset.starIdx, 10);
+          this._renderSkillsTab();
+          return;
+        }
+        // Enable checkbox
+        const enableEl = e.target.closest('[data-enable-idx]');
+        if (enableEl) {
+          const idx = parseInt(enableEl.dataset.enableIdx, 10);
+          skills[idx].enabled = enableEl.checked;
+          return;
+        }
+        // Group select
+        const itemEl = e.target.closest('[data-group-idx]');
+        if (itemEl) {
+          this._selectedSkillGroup = parseInt(itemEl.dataset.groupIdx, 10);
+          this._renderSkillsTab();
+        }
+      });
+    }
+
+    // Add group button
+    document.getElementById('add-group')?.addEventListener('click', () => {
+      skills.push({
+        enabled: true,
+        slot: '',
+        label: '',
+        mainActiveSkill: 1,
+        includeInFullDPS: false,
+        gems: [],
+      });
+      this._selectedSkillGroup = skills.length - 1;
+      this._renderSkillsTab();
+    });
+
+    // If no group selected, stop here
+    const selIdx = this._selectedSkillGroup;
+    if (selIdx === null || selIdx < 0 || selIdx >= skills.length) return;
+    const group = skills[selIdx];
+
+    // Delete group
+    document.getElementById('delete-group')?.addEventListener('click', () => {
+      skills.splice(selIdx, 1);
+      this._selectedSkillGroup = null;
+      if (this.build.mainSocketGroup >= skills.length) {
+        this.build.mainSocketGroup = Math.max(0, skills.length - 1);
+      }
+      this._renderSkillsTab();
+    });
+
+    // Slot dropdown
+    document.getElementById('skill-slot')?.addEventListener('change', (e) => {
+      group.slot = e.target.value;
+    });
+
+    // Label input
+    document.getElementById('skill-label')?.addEventListener('input', (e) => {
+      group.label = e.target.value;
+      // Update list item label inline
+      const listItem = groupList?.querySelector(`[data-group-idx="${selIdx}"] .skill-group-label`);
+      if (listItem) {
+        listItem.textContent = group.label || (group.gems?.length ? group.gems[0].name || 'Unnamed' : 'Empty group');
+      }
+    });
+
+    // Enabled checkbox
+    document.getElementById('skill-enabled')?.addEventListener('change', (e) => {
+      group.enabled = e.target.checked;
+      // Sync list checkbox
+      const listCb = groupList?.querySelector(`[data-enable-idx="${selIdx}"]`);
+      if (listCb) listCb.checked = e.target.checked;
+    });
+
+    // Full DPS checkbox
+    document.getElementById('skill-fulldps')?.addEventListener('change', (e) => {
+      group.includeInFullDPS = e.target.checked;
+    });
+
+    // Gem table events
+    const gemBody = document.getElementById('gem-table-body');
+    if (gemBody) {
+      // Enable checkbox
+      gemBody.addEventListener('change', (e) => {
+        const enableCb = e.target.closest('[data-gem-enable]');
+        if (enableCb) {
+          const gi = parseInt(enableCb.dataset.gemEnable, 10);
+          group.gems[gi].enabled = enableCb.checked;
+        }
+        const levelInput = e.target.closest('[data-gem-level]');
+        if (levelInput) {
+          const gi = parseInt(levelInput.dataset.gemLevel, 10);
+          group.gems[gi].level = Math.max(1, parseInt(levelInput.value) || 1);
+        }
+        const qualInput = e.target.closest('[data-gem-quality]');
+        if (qualInput) {
+          const gi = parseInt(qualInput.dataset.gemQuality, 10);
+          group.gems[gi].quality = Math.max(0, parseInt(qualInput.value) || 0);
+        }
+      });
+
+      // Remove gem button
+      gemBody.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('[data-gem-remove]');
+        if (removeBtn) {
+          const gi = parseInt(removeBtn.dataset.gemRemove, 10);
+          group.gems.splice(gi, 1);
+          this._renderSkillsTab();
+        }
+      });
+
+      // Gem name input (searchable dropdown)
+      gemBody.addEventListener('input', (e) => {
+        const nameInput = e.target.closest('[data-gem-name]');
+        if (nameInput) {
+          const gi = parseInt(nameInput.dataset.gemName, 10);
+          group.gems[gi].name = nameInput.value;
+          this._showGemDropdown(nameInput, gi, group);
+        }
+      });
+
+      // Keyboard navigation for dropdown
+      gemBody.addEventListener('keydown', (e) => {
+        const nameInput = e.target.closest('[data-gem-name]');
+        if (nameInput && e.key === 'Escape') {
+          this._hideGemDropdown(nameInput);
+        }
+      });
+
+      // Blur to close dropdown (with delay)
+      gemBody.addEventListener('focusout', (e) => {
+        const nameInput = e.target.closest('[data-gem-name]');
+        if (nameInput) {
+          setTimeout(() => this._hideGemDropdown(nameInput), 200);
+        }
+      });
+    }
+
+    // Add gem button
+    document.getElementById('add-gem')?.addEventListener('click', () => {
+      group.gems.push({
+        name: '',
+        gemId: '',
+        variantId: '',
+        skillId: '',
+        level: 1,
+        quality: 0,
+        qualityId: 'Default',
+        enabled: true,
+        count: 1,
+        gemData: null,
+      });
+      this._renderSkillsTab();
+      // Focus new gem name input
+      setTimeout(() => {
+        const inputs = document.querySelectorAll('.gem-name-input');
+        if (inputs.length) inputs[inputs.length - 1].focus();
+      }, 50);
+    });
+  }
+
+  _showGemDropdown(inputEl, gemIndex, group) {
+    const query = inputEl.value.trim();
+    // Remove existing dropdown
+    this._hideGemDropdown(inputEl);
+    if (query.length < 2 || !this.gemRegistry) return;
+
+    const results = this.gemRegistry.search(query).slice(0, 10);
+    if (results.length === 0) return;
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'gem-dropdown';
+    for (const gem of results) {
+      const item = document.createElement('div');
+      item.className = 'gem-dropdown-item';
+      item.textContent = gem.name;
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // prevent blur
+        const g = group.gems[gemIndex];
+        g.name = gem.name;
+        g.gemData = gem;
+        g.gemId = gem.gameId || '';
+        g.skillId = gem.grantedEffectId || '';
+        this._renderSkillsTab();
+      });
+      dropdown.appendChild(item);
+    }
+
+    const wrapper = inputEl.closest('.gem-name-wrapper');
+    if (wrapper) wrapper.appendChild(dropdown);
+  }
+
+  _hideGemDropdown(inputEl) {
+    const wrapper = inputEl?.closest('.gem-name-wrapper');
+    const existing = wrapper?.querySelector('.gem-dropdown');
+    if (existing) existing.remove();
+  }
+
   _renderItemsTab() {
-    const slots = [
-      'Weapon 1', 'Weapon 2', 'Helmet', 'Body Armour', 'Gloves', 'Boots',
-      'Amulet', 'Ring 1', 'Ring 2', 'Belt',
+    const SLOT_LABELS = {
+      'Weapon 1': 'W1', 'Weapon 2': 'W2',
+      'Helmet': 'Helm', 'Body Armour': 'Body', 'Gloves': 'Gloves', 'Boots': 'Boots',
+      'Amulet': 'Amul', 'Ring 1': 'R1', 'Ring 2': 'R2', 'Belt': 'Belt',
+    };
+    const GRID_SLOTS = [
+      // [slot, gridArea]
+      ['Weapon 1', 'weap1'], ['Weapon 2', 'weap2'],
+      ['Helmet', 'helm'], ['Body Armour', 'body'],
+      ['Gloves', 'gloves'], ['Boots', 'boots'],
+      ['Amulet', 'amulet'], ['Ring 1', 'ring1'], ['Ring 2', 'ring2'], ['Belt', 'belt'],
     ];
+    const sel = this._selectedItemSlot || null;
+
+    const slotCells = GRID_SLOTS.map(([slot, area]) => {
+      const item = this.resolvedItems[slot];
+      const selected = slot === sel ? ' gear-slot-selected' : '';
+      const rarity = item ? ` rarity-slot-${(item.rarity || 'normal').toLowerCase()}` : '';
+      const equipped = item ? ' gear-slot-equipped' : '';
+      const label = SLOT_LABELS[slot];
+      const itemName = item ? escapeHtml(item.name) : '';
+      return `<div class="gear-slot${selected}${rarity}${equipped}" data-slot="${escapeHtml(slot)}" style="grid-area:${area}">
+        <div class="gear-slot-label">${label}</div>
+        ${itemName ? `<div class="gear-slot-name">${itemName}</div>` : ''}
+      </div>`;
+    }).join('');
+
     this.tabContent.innerHTML = `
-      <div class="panel-layout">
-        <div class="panel-sidebar">
-          <div class="panel-header">Equipment Slots</div>
-          <div class="panel-list">
-            ${slots.map(s => `<div class="list-item">${s} <span class="item-empty">(empty)</span></div>`).join('')}
-          </div>
-        </div>
-        <div class="panel-main">
-          <div class="panel-placeholder">Select a slot and paste item text to equip</div>
+      <div class="items-layout">
+        <div class="gear-grid">${slotCells}</div>
+        <div class="gear-detail" id="gear-detail">
+          ${sel ? this._renderItemDetail(sel) : '<div class="panel-placeholder">Click a slot to view details</div>'}
         </div>
       </div>
     `;
+
+    // Bind slot clicks and hover tooltips
+    const grid = this.tabContent.querySelector('.gear-grid');
+    const ttEl = this._getOrCreateTooltipEl();
+    if (grid) {
+      grid.addEventListener('click', (e) => {
+        const el = e.target.closest('[data-slot]');
+        if (el) {
+          this._selectedItemSlot = el.dataset.slot;
+          this._renderItemsTab();
+        }
+      });
+      grid.addEventListener('mouseover', (e) => {
+        const el = e.target.closest('[data-slot]');
+        if (el && this.resolvedItems[el.dataset.slot]) {
+          ttEl.innerHTML = this._renderItemDetail(el.dataset.slot);
+          ttEl.style.display = 'block';
+          this._positionGearTooltip(el, ttEl);
+        }
+      });
+      grid.addEventListener('mouseout', (e) => {
+        const el = e.target.closest('[data-slot]');
+        if (el) ttEl.style.display = 'none';
+      });
+    }
+  }
+
+  _getOrCreateTooltipEl() {
+    let el = document.getElementById('gear-tooltip');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'gear-tooltip';
+      el.className = 'gear-tooltip';
+      el.style.display = 'none';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  _positionGearTooltip(slotEl, ttEl) {
+    const rect = slotEl.getBoundingClientRect();
+    const ttRect = ttEl.getBoundingClientRect();
+    let left = rect.right + 8;
+    let top = rect.top;
+    // If overflows right, show to the left
+    if (left + ttRect.width > window.innerWidth) {
+      left = rect.left - ttRect.width - 8;
+    }
+    // If overflows bottom, shift up
+    if (top + ttRect.height > window.innerHeight) {
+      top = window.innerHeight - ttRect.height - 8;
+    }
+    if (top < 0) top = 4;
+    ttEl.style.left = left + 'px';
+    ttEl.style.top = top + 'px';
+  }
+
+  _renderItemDetail(slot) {
+    const item = this.resolvedItems[slot];
+    if (!item) {
+      return `<div class="item-detail"><h3>${escapeHtml(slot)}</h3><p class="item-empty">No item equipped</p></div>`;
+    }
+
+    const r = (item.rarity || 'normal').toLowerCase();
+    let html = `<div class="item-tooltip rarity-border-${r}">`;
+
+    // Header: name + base
+    html += `<div class="tt-header rarity-bg-${r}">`;
+    html += `<div class="tt-name">${escapeHtml(item.name)}</div>`;
+    if (item.baseName) html += `<div class="tt-base">${escapeHtml(item.baseName)}</div>`;
+    html += '</div>';
+
+    // Properties section: quality, weapon stats, armour stats
+    const props = [];
+    if (item.quality) props.push(`<span class="tt-prop-name">Quality:</span> <span class="tt-prop-aug">+${item.quality}%</span>`);
+
+    if (item.weaponData) {
+      const wd = item.weaponData;
+      const dmgParts = [];
+      if (wd.PhysicalMin) dmgParts.push(`<span class="tt-prop-aug">${wd.PhysicalMin}-${wd.PhysicalMax}</span>`);
+      const eleParts = [];
+      if (wd.FireMin) eleParts.push(`<span class="tt-dmg-fire">${wd.FireMin}-${wd.FireMax}</span>`);
+      if (wd.ColdMin) eleParts.push(`<span class="tt-dmg-cold">${wd.ColdMin}-${wd.ColdMax}</span>`);
+      if (wd.LightningMin) eleParts.push(`<span class="tt-dmg-lightning">${wd.LightningMin}-${wd.LightningMax}</span>`);
+      if (wd.ChaosMin) eleParts.push(`<span class="tt-dmg-chaos">${wd.ChaosMin}-${wd.ChaosMax}</span>`);
+      if (dmgParts.length || eleParts.length) {
+        props.push(`<span class="tt-prop-name">Physical Damage:</span> ${dmgParts.join(', ')}`);
+        if (eleParts.length) props.push(`<span class="tt-prop-name">Elemental Damage:</span> ${eleParts.join(', ')}`);
+      }
+      props.push(`<span class="tt-prop-name">Critical Strike Chance:</span> ${wd.CritChance}%`);
+      props.push(`<span class="tt-prop-name">Attacks per Second:</span> ${wd.AttackRate}`);
+    }
+
+    if (item.armourData) {
+      const ad = item.armourData;
+      if (ad.Armour) props.push(`<span class="tt-prop-name">Armour:</span> <span class="tt-prop-aug">${ad.Armour}</span>`);
+      if (ad.Evasion) props.push(`<span class="tt-prop-name">Evasion Rating:</span> <span class="tt-prop-aug">${ad.Evasion}</span>`);
+      if (ad.EnergyShield) props.push(`<span class="tt-prop-name">Energy Shield:</span> <span class="tt-prop-aug">${ad.EnergyShield}</span>`);
+      if (ad.BlockChance) props.push(`<span class="tt-prop-name">Chance to Block:</span> ${ad.BlockChance}%`);
+    }
+
+    if (props.length) {
+      html += '<div class="tt-section">';
+      html += props.map(p => `<div class="tt-prop">${p}</div>`).join('');
+      html += '</div>';
+    }
+
+    // Requirements
+    const req = item.requirements;
+    if (req && (req.level || req.str || req.dex || req.int)) {
+      html += '<div class="tt-section"><div class="tt-prop"><span class="tt-prop-name">Requires</span> ';
+      const parts = [];
+      if (req.level) parts.push(`<span class="tt-prop-name">Level</span> <span class="tt-req-val">${req.level}</span>`);
+      if (req.str) parts.push(`<span class="tt-req-val">${req.str}</span> <span class="tt-prop-name">Str</span>`);
+      if (req.dex) parts.push(`<span class="tt-req-val">${req.dex}</span> <span class="tt-prop-name">Dex</span>`);
+      if (req.int) parts.push(`<span class="tt-req-val">${req.int}</span> <span class="tt-prop-name">Int</span>`);
+      html += parts.join(', ') + '</div></div>';
+    }
+
+    // Enchant mods
+    if (item.enchantModLines && item.enchantModLines.length > 0) {
+      html += '<div class="tt-section">';
+      for (const mod of item.enchantModLines) html += `<div class="tt-mod tt-mod-enchant">${escapeHtml(mod)}</div>`;
+      html += '</div>';
+    }
+
+    // Implicit mods
+    if (item.implicitModLines && item.implicitModLines.length > 0) {
+      html += '<div class="tt-section">';
+      for (const mod of item.implicitModLines) html += `<div class="tt-mod tt-mod-implicit">${escapeHtml(mod)}</div>`;
+      html += '</div>';
+    }
+
+    // Explicit mods
+    if (item.explicitModLines && item.explicitModLines.length > 0) {
+      html += '<div class="tt-section">';
+      for (const mod of item.explicitModLines) {
+        const isCrafted = mod.startsWith('{crafted}');
+        const text = mod.replace(/^\{crafted\}/, '').replace(/^\{range:[^}]*\}/, '');
+        const cls = isCrafted ? 'tt-mod tt-mod-crafted' : 'tt-mod tt-mod-explicit';
+        html += `<div class="${cls}">${escapeHtml(text)}</div>`;
+      }
+      html += '</div>';
+    }
+
+    // Crucible mods
+    if (item.crucibleModLines && item.crucibleModLines.length > 0) {
+      html += '<div class="tt-section">';
+      for (const mod of item.crucibleModLines) html += `<div class="tt-mod tt-mod-crucible">${escapeHtml(mod)}</div>`;
+      html += '</div>';
+    }
+
+    // Status flags
+    const flags = [];
+    if (item.corrupted) flags.push('<span class="tt-corrupted">Corrupted</span>');
+    if (item.mirrored) flags.push('<span class="tt-mirrored">Mirrored</span>');
+    if (item.fractured) flags.push('<span class="tt-fractured">Fractured Item</span>');
+    if (item.synthesised) flags.push('<span class="tt-synthesised">Synthesised Item</span>');
+    if (flags.length) {
+      html += `<div class="tt-section">${flags.join('')}</div>`;
+    }
+
+    // Weapon DPS summary (PoB addition, not in-game)
+    if (item.weaponData) {
+      const wd = item.weaponData;
+      html += '<div class="tt-section tt-dps-summary">';
+      if (wd.PhysicalDPS) html += `<div>Physical DPS: <span class="tt-dps-val">${Math.round(wd.PhysicalDPS)}</span></div>`;
+      const eleDPS = (wd.FireDPS || 0) + (wd.ColdDPS || 0) + (wd.LightningDPS || 0);
+      if (eleDPS) html += `<div>Elemental DPS: <span class="tt-dps-val">${Math.round(eleDPS)}</span></div>`;
+      if (wd.ChaosDPS) html += `<div>Chaos DPS: <span class="tt-dps-val">${Math.round(wd.ChaosDPS)}</span></div>`;
+      html += `<div>Total DPS: <span class="tt-dps-val tt-dps-total">${Math.round(wd.TotalDPS)}</span></div>`;
+      html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
   }
 
   _renderCalcsTab() {
@@ -988,11 +1487,31 @@ class PoBApp {
       }
     }
 
+    // Apply skills
+    this.build = build;
+    this._selectedSkillGroup = null;
+    this._resolveGems();
+
     // Apply tree nodes from the active spec
     const activeSpec = build.specs?.[build.activeSpec];
     const jewelSockets = activeSpec?.jewelSockets || build.jewelSockets || [];
     this._applySpecNodes(build.treeNodes || [], build.masteryEffects || [], jewelSockets);
     this._updateSpecDropdown();
+
+    // Re-render skills tab if active
+    if (this.activeTab === 'Skills') this._renderSkillsTab();
+  }
+
+  _resolveGems() {
+    if (!this.gemRegistry || !this.build) return;
+    for (const group of this.build.skills) {
+      for (const gem of (group.gems || [])) {
+        const gemData = (gem.gemId ? this.gemRegistry.findByGameId(gem.gemId) : null)
+          || (gem.skillId ? this.gemRegistry.findBySkillId(gem.skillId) : null)
+          || (gem.name ? this.gemRegistry.findByName(gem.name) : null);
+        gem.gemData = gemData;
+      }
+    }
   }
 
   _applySpecNodes(nodeIds, masteryEffects = [], jewelSockets = []) {
@@ -1040,9 +1559,7 @@ class PoBApp {
       }
     }
 
-    if (this.activeTab === 'Tree') {
-      this._rebuildTreeInstances();
-    }
+    this._rebuildTreeInstances();
     this._updateStatusBar();
     this._runCalc();
   }
@@ -1110,6 +1627,8 @@ class PoBApp {
       treeNodes: nodeIds,
       masteryEffects,
       jewelSockets,
+      skills: this.build?.skills || [],
+      mainSocketGroup: this.build?.mainSocketGroup || 0,
     });
   }
 }
