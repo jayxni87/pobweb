@@ -123,6 +123,70 @@ export function initModDB(modDB) {
     { type: 'Condition', var: 'Convergence' });
 }
 
+// --- Item mod merging ---
+
+const GEAR_SLOTS = [
+  'Weapon 1', 'Weapon 2',
+  'Helmet', 'Body Armour', 'Gloves', 'Boots',
+  'Amulet', 'Ring 1', 'Ring 2', 'Belt',
+];
+
+const LOCAL_WEAPON_MODS = new Set([
+  'PhysicalMin', 'PhysicalMax', 'FireMin', 'FireMax', 'ColdMin', 'ColdMax',
+  'LightningMin', 'LightningMax', 'ChaosMin', 'ChaosMax',
+  'PhysicalDamage',
+]);
+
+const LOCAL_ARMOUR_MODS = new Set([
+  'Armour', 'Evasion', 'EnergyShield',
+]);
+
+function isLocalMod(mod, item) {
+  if (!item.baseData) return false;
+  if (item.baseData.weapon) {
+    // Flat damage mods (BASE with flags===0) are local on weapons
+    if (LOCAL_WEAPON_MODS.has(mod.name) && mod.flags === 0) return true;
+    // Attack speed INC with Attack flag is local on weapons
+    if (mod.name === 'Speed' && mod.type === 'INC' && (mod.flags & ModFlag.Attack)) return true;
+    // Crit chance INC is local on weapons
+    if (mod.name === 'CritChance' && mod.type === 'INC') return true;
+  }
+  if (item.baseData.armour) {
+    // Defence INC mods are local on armour pieces
+    if (LOCAL_ARMOUR_MODS.has(mod.name) && mod.type === 'INC') return true;
+  }
+  return false;
+}
+
+/**
+ * Merge equipped item mods into the calculation environment.
+ * Local mods (weapon damage, armour defence INC) are filtered out —
+ * they've already been consumed by Item._calcWeapon / _calcArmour.
+ *
+ * @param {object} env - Calculation environment from initEnv()
+ * @param {Object<string, import('../models/item.js').Item>} items - Map of slot name to Item
+ */
+export function mergeItemMods(env, items) {
+  const itemModDB = new ModDB();
+
+  for (const slotName of GEAR_SLOTS) {
+    const item = items[slotName];
+    if (!item || !item.parsedMods) continue;
+
+    // Store weapon data on the environment
+    if (slotName === 'Weapon 1' && item.weaponData) env.player.weaponData1 = item.weaponData;
+    if (slotName === 'Weapon 2' && item.weaponData) env.player.weaponData2 = item.weaponData;
+
+    for (const mod of item.parsedMods) {
+      if (!isLocalMod(mod, item)) {
+        itemModDB.addMod(mod);
+      }
+    }
+  }
+
+  env.player.modDB.addDB(itemModDB);
+}
+
 // Create a minimal calculation environment
 export function initEnv(options) {
   const opts = options || {};

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { initModDB, initEnv } from '../calc-setup.js';
+import { initModDB, initEnv, mergeItemMods } from '../calc-setup.js';
 import { ModDB } from '../mod-db.js';
+import { Item } from '../../models/item.js';
+import { BaseTypeRegistry } from '../../data/base-types.js';
 
 describe('initModDB', () => {
   it('creates resistance caps at 75%', () => {
@@ -95,5 +97,112 @@ describe('initEnv', () => {
   it('initializes base mods on enemy modDB', () => {
     const env = initEnv();
     expect(env.enemyDB.sum('BASE', null, 'FireResistMax')).toBe(75);
+  });
+});
+
+describe('mergeItemMods', () => {
+  const registry = new BaseTypeRegistry();
+
+  function makeItem(text) {
+    const item = new Item(text);
+    item.resolveBase(registry);
+    item.buildModList();
+    return item;
+  }
+
+  it('merges flat life mod from equipped ring', () => {
+    const env = initEnv();
+    const items = {
+      'Ring 1': makeItem(`Rarity: Rare
+Storm Band
+Ruby Ring
+--------
++30% to Fire Resistance (implicit)
+--------
++50 to maximum Life`),
+    };
+    mergeItemMods(env, items);
+    expect(env.player.modDB.sum('BASE', null, 'Life')).toBe(50);
+  });
+
+  it('merges resistance mods', () => {
+    const env = initEnv();
+    const items = {
+      'Ring 1': makeItem(`Rarity: Rare
+Test Ring
+Ruby Ring
+--------
++30% to Fire Resistance (implicit)
+--------
++40% to Cold Resistance`),
+    };
+    mergeItemMods(env, items);
+    expect(env.player.modDB.sum('BASE', null, 'FireResist')).toBe(30);
+    expect(env.player.modDB.sum('BASE', null, 'ColdResist')).toBe(40);
+  });
+
+  it('does not merge local weapon damage mods globally', () => {
+    const env = initEnv();
+    const items = {
+      'Weapon 1': makeItem(`Rarity: Rare
+Test Sword
+Rusted Sword
+--------
+Quality: +20%
+--------
+Adds 10 to 20 Physical Damage`),
+    };
+    mergeItemMods(env, items);
+    // Local flat phys on weapon should NOT appear in global modDB
+    expect(env.player.modDB.sum('BASE', null, 'PhysicalMin')).toBe(0);
+    expect(env.player.modDB.sum('BASE', null, 'PhysicalMax')).toBe(0);
+  });
+
+  it('stores weaponData on env for Weapon 1', () => {
+    const env = initEnv();
+    const items = {
+      'Weapon 1': makeItem(`Rarity: Rare
+Test Sword
+Rusted Sword
+--------
+Quality: +20%
+--------
+Adds 10 to 20 Physical Damage`),
+    };
+    mergeItemMods(env, items);
+    expect(env.player.weaponData1).toBeDefined();
+    expect(env.player.weaponData1.PhysicalDPS).toBeGreaterThan(0);
+  });
+
+  it('merges mods from multiple slots', () => {
+    const env = initEnv();
+    const items = {
+      'Ring 1': makeItem(`Rarity: Rare
+Ring One
+Ruby Ring
+--------
++50 to maximum Life`),
+      'Ring 2': makeItem(`Rarity: Rare
+Ring Two
+Ruby Ring
+--------
++30 to maximum Life`),
+    };
+    mergeItemMods(env, items);
+    expect(env.player.modDB.sum('BASE', null, 'Life')).toBe(80);
+  });
+
+  it('does not merge local armour INC mods globally', () => {
+    const env = initEnv();
+    const items = {
+      'Body Armour': makeItem(`Rarity: Rare
+Test Vest
+Plate Vest
+--------
+50% increased Armour`),
+    };
+    mergeItemMods(env, items);
+    // Local armour INC should NOT appear in global modDB
+    expect(env.player.modDB.sum('INC', null, 'Armour')).toBe(0);
   });
 });
