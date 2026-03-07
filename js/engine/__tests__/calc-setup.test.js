@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { initModDB, initEnv, mergeItemMods } from '../calc-setup.js';
 import { ModDB } from '../mod-db.js';
 import { Item } from '../../models/item.js';
@@ -101,7 +101,10 @@ describe('initEnv', () => {
 });
 
 describe('mergeItemMods', () => {
-  const registry = new BaseTypeRegistry();
+  let registry;
+  beforeAll(async () => {
+    registry = await BaseTypeRegistry.load();
+  });
 
   function makeItem(text) {
     const item = new Item(text);

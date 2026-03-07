@@ -1,11 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { BaseTypeRegistry } from '../base-types.js';
 
 describe('BaseTypeRegistry', () => {
   let registry;
 
   // Construct once for all tests (it's read-only data)
-  registry = new BaseTypeRegistry();
+  beforeAll(async () => {
+    registry = await BaseTypeRegistry.load();
+  });
 
   describe('get()', () => {
     it('finds weapon bases by name', () => {

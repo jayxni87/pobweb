@@ -70,7 +70,7 @@ class PoBApp {
   }
 
   async init() {
-    this.baseTypeRegistry = new BaseTypeRegistry();
+    this.baseTypeRegistry = await BaseTypeRegistry.load();
     this._initTreeLayer();
     this._initMenuBar();
     this._initTabs();

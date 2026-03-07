@@ -5,34 +5,30 @@
  * keyed by base name (e.g. "Rusted Sword", "Plate Vest", "Iron Ring").
  */
 
-import amulet from './bases/amulet.json' with { type: 'json' };
-import axe from './bases/axe.json' with { type: 'json' };
-import belt from './bases/belt.json' with { type: 'json' };
-import body from './bases/body.json' with { type: 'json' };
-import boots from './bases/boots.json' with { type: 'json' };
-import bow from './bases/bow.json' with { type: 'json' };
-import claw from './bases/claw.json' with { type: 'json' };
-import dagger from './bases/dagger.json' with { type: 'json' };
-import fishing from './bases/fishing.json' with { type: 'json' };
-import flask from './bases/flask.json' with { type: 'json' };
-import gloves from './bases/gloves.json' with { type: 'json' };
-import graft from './bases/graft.json' with { type: 'json' };
-import helmet from './bases/helmet.json' with { type: 'json' };
-import jewel from './bases/jewel.json' with { type: 'json' };
-import mace from './bases/mace.json' with { type: 'json' };
-import quiver from './bases/quiver.json' with { type: 'json' };
-import ring from './bases/ring.json' with { type: 'json' };
-import shield from './bases/shield.json' with { type: 'json' };
-import staff from './bases/staff.json' with { type: 'json' };
-import sword from './bases/sword.json' with { type: 'json' };
-import tincture from './bases/tincture.json' with { type: 'json' };
-import wand from './bases/wand.json' with { type: 'json' };
-
-const ALL_BASE_FILES = [
-  amulet, axe, belt, body, boots, bow, claw, dagger, fishing, flask,
-  gloves, graft, helmet, jewel, mace, quiver, ring, shield, staff,
-  sword, tincture, wand,
+const BASE_NAMES = [
+  'amulet', 'axe', 'belt', 'body', 'boots', 'bow', 'claw', 'dagger',
+  'fishing', 'flask', 'gloves', 'graft', 'helmet', 'jewel', 'mace',
+  'quiver', 'ring', 'shield', 'staff', 'sword', 'tincture', 'wand',
 ];
+
+async function loadBaseFiles() {
+  // Node.js / Vitest: read from filesystem (fetch doesn't support file:// URLs)
+  if (typeof globalThis.process !== 'undefined' && globalThis.process.versions?.node) {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    return BASE_NAMES.map(name => {
+      const url = new URL(`./bases/${name}.json`, import.meta.url);
+      return JSON.parse(readFileSync(fileURLToPath(url), 'utf8'));
+    });
+  }
+  // Browser: use fetch (works regardless of server MIME type)
+  return Promise.all(
+    BASE_NAMES.map(name =>
+      fetch(new URL(`./bases/${name}.json`, import.meta.url))
+        .then(r => r.json())
+    )
+  );
+}
 
 const WEAPON_TYPES = new Set([
   'One Handed Sword',
@@ -71,13 +67,25 @@ export class BaseTypeRegistry {
   /** @type {Map<string, object>} */
   #map;
 
-  constructor() {
+  /**
+   * @param {object[]} baseFiles - array of parsed JSON objects (one per base category)
+   */
+  constructor(baseFiles) {
     this.#map = new Map();
-    for (const file of ALL_BASE_FILES) {
+    for (const file of baseFiles) {
       for (const [name, data] of Object.entries(file)) {
         this.#map.set(name, data);
       }
     }
+  }
+
+  /**
+   * Fetch all base-type JSON files and construct the registry.
+   * @returns {Promise<BaseTypeRegistry>}
+   */
+  static async load() {
+    const files = await loadBaseFiles();
+    return new BaseTypeRegistry(files);
   }
 
   /**
