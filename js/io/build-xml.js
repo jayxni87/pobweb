@@ -14,6 +14,8 @@ export class Build {
     this.activeSpec = opts.activeSpec || 0; // 0-indexed
     this.skills = opts.skills || [];
     this.items = opts.items || [];
+    this.itemsById = opts.itemsById || {};   // id → raw item text
+    this.itemSlots = opts.itemSlots || {};    // slotName → itemId
     this.config = opts.config || {};
     this.notes = opts.notes !== undefined ? opts.notes : '';
   }
@@ -212,7 +214,7 @@ function parseXmlSimple(xml) {
     build.skills.push(group);
   }
 
-  // Items — support both formats: <Item slot="..."> and <Item id="N">
+  // Items — support both formats: <Item slot="..."> (our format) and <Item id="N"> (PoB format)
   const itemRegex = /<Item\s+([^>]*)>([\s\S]*?)<\/Item>/g;
   let iMatch;
   while ((iMatch = itemRegex.exec(xml)) !== null) {
@@ -224,7 +226,66 @@ function parseXmlSimple(xml) {
       itemById[itemId] = rawText;
     }
     if (slot) {
+      // Our format: <Item slot="Helmet">...</Item>
       build.items.push({ slot, raw: rawText });
+    }
+  }
+
+  // Expose itemsById on the build
+  build.itemsById = { ...itemById };
+
+  // Parse activeItemSet from <Items activeItemSet="N">
+  const itemsMatch = xml.match(/<Items\s+([^>]*)>/);
+  const activeItemSetStr = itemsMatch ? extractAttr(itemsMatch[1], 'activeItemSet') : null;
+  const activeItemSet = activeItemSetStr || '1';
+
+  // Parse <ItemSet> blocks for <Slot> tags (PoB format)
+  const itemSetRegex = /<ItemSet\s+([^>]*)>([\s\S]*?)<\/ItemSet>/g;
+  let isMatch;
+  let foundItemSets = false;
+  while ((isMatch = itemSetRegex.exec(xml)) !== null) {
+    foundItemSets = true;
+    const isAttrs = isMatch[1];
+    const setId = extractAttr(isAttrs, 'id');
+    if (setId !== activeItemSet) continue;
+    // Parse Slot elements within this ItemSet
+    const slotRegex = /<Slot\s+([^>]*?)\/>/g;
+    let slotMatch;
+    while ((slotMatch = slotRegex.exec(isMatch[2])) !== null) {
+      const sAttrs = slotMatch[1];
+      const slotName = extractAttr(sAttrs, 'name');
+      const slotItemId = extractAttr(sAttrs, 'itemId');
+      if (slotName && slotItemId) {
+        build.itemSlots[slotName] = slotItemId;
+      }
+    }
+  }
+
+  // Parse legacy top-level <Slot> elements directly inside <Items> (not inside <ItemSet>)
+  if (!foundItemSets) {
+    // Extract the <Items> block content
+    const itemsBlockMatch = xml.match(/<Items[^>]*>([\s\S]*?)<\/Items>/);
+    if (itemsBlockMatch) {
+      const itemsBlock = itemsBlockMatch[1];
+      // Remove <ItemSet>...</ItemSet> blocks to get only top-level Slot elements
+      const withoutItemSets = itemsBlock.replace(/<ItemSet[\s\S]*?<\/ItemSet>/g, '');
+      const slotRegex = /<Slot\s+([^>]*?)\/>/g;
+      let slotMatch;
+      while ((slotMatch = slotRegex.exec(withoutItemSets)) !== null) {
+        const sAttrs = slotMatch[1];
+        const slotName = extractAttr(sAttrs, 'name');
+        const slotItemId = extractAttr(sAttrs, 'itemId');
+        if (slotName && slotItemId) {
+          build.itemSlots[slotName] = slotItemId;
+        }
+      }
+    }
+  }
+
+  // Build items array from resolved slot assignments (PoB format)
+  for (const [slotName, slotItemId] of Object.entries(build.itemSlots)) {
+    if (itemById[slotItemId]) {
+      build.items.push({ slot: slotName, raw: itemById[slotItemId] });
     }
   }
 
@@ -350,12 +411,64 @@ function parseDom(doc) {
     build.skills.push(group);
   });
 
+  // Items — support both formats: <Item slot="..."> (our format) and <Item id="N"> (PoB format)
   doc.querySelectorAll('Item').forEach(item => {
-    build.items.push({
-      slot: item.getAttribute('slot') || '',
-      raw: item.textContent || '',
+    const slot = item.getAttribute('slot');
+    const itemId = item.getAttribute('id');
+    const rawText = item.textContent || '';
+    if (itemId) {
+      domItemById[itemId] = rawText;
+    }
+    if (slot) {
+      // Our format: <Item slot="Helmet">...</Item>
+      build.items.push({ slot, raw: rawText });
+    }
+  });
+
+  // Expose itemsById on the build
+  build.itemsById = { ...domItemById };
+
+  // Parse activeItemSet from <Items activeItemSet="N">
+  const itemsEl = doc.querySelector('Items');
+  const activeItemSetAttr = itemsEl?.getAttribute('activeItemSet');
+  const activeItemSet = activeItemSetAttr || '1';
+
+  // Parse <ItemSet> blocks for <Slot> tags (PoB format)
+  const itemSetEls = doc.querySelectorAll('ItemSet');
+  let foundItemSets = false;
+  itemSetEls.forEach(setEl => {
+    foundItemSets = true;
+    const setId = setEl.getAttribute('id');
+    if (setId !== activeItemSet) return;
+    setEl.querySelectorAll('Slot').forEach(slotEl => {
+      const slotName = slotEl.getAttribute('name');
+      const slotItemId = slotEl.getAttribute('itemId');
+      if (slotName && slotItemId) {
+        build.itemSlots[slotName] = slotItemId;
+      }
     });
   });
+
+  // Parse legacy top-level <Slot> elements directly inside <Items> (not inside <ItemSet>)
+  if (!foundItemSets && itemsEl) {
+    // Only get direct child Slot elements of Items (not nested inside ItemSet)
+    for (const child of itemsEl.children) {
+      if (child.tagName === 'Slot') {
+        const slotName = child.getAttribute('name');
+        const slotItemId = child.getAttribute('itemId');
+        if (slotName && slotItemId) {
+          build.itemSlots[slotName] = slotItemId;
+        }
+      }
+    }
+  }
+
+  // Build items array from resolved slot assignments (PoB format)
+  for (const [slotName, slotItemId] of Object.entries(build.itemSlots)) {
+    if (domItemById[slotItemId]) {
+      build.items.push({ slot: slotName, raw: domItemById[slotItemId] });
+    }
+  }
 
   doc.querySelectorAll('Config Input').forEach(input => {
     const name = input.getAttribute('name');

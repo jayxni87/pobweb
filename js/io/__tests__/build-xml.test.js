@@ -260,3 +260,203 @@ Implicits: 3
     expect(build.specs[0].jewelSockets[0].itemText).toContain('Large Cluster Jewel');
   });
 });
+
+describe('PoB Item/Slot/ItemSet parsing', () => {
+  it('parses PoB format with ItemSet containing Slot elements', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build className="Marauder" level="95" ascendClassName="Juggernaut" buildName="Test"/>
+  <Tree>
+    <Spec treeVersion="3_25" classId="1" ascendClassId="1" nodes="100">
+    </Spec>
+  </Tree>
+  <Skills></Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Doom Shelter
+Royal Burgonet
+Armour: 500
++80 to maximum Life
++40% to Fire Resistance
+    </Item>
+    <Item id="2">
+Rarity: UNIQUE
+Kaom&apos;s Heart
+Glorious Plate
++500 to maximum Life
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Helmet" itemId="1"/>
+      <Slot name="Body Armour" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config></Config>
+  <Notes></Notes>
+</PathOfBuilding>`;
+
+    const build = xmlToBuild(xml);
+
+    // itemsById should map id -> raw text
+    expect(build.itemsById).toBeDefined();
+    expect(build.itemsById['1']).toContain('Doom Shelter');
+    expect(build.itemsById['2']).toContain("Kaom's Heart");
+
+    // itemSlots should map slot name -> item id
+    expect(build.itemSlots).toBeDefined();
+    expect(build.itemSlots['Helmet']).toBe('1');
+    expect(build.itemSlots['Body Armour']).toBe('2');
+
+    // items array should have resolved slot assignments
+    expect(build.items).toHaveLength(2);
+    const helmet = build.items.find(i => i.slot === 'Helmet');
+    expect(helmet).toBeDefined();
+    expect(helmet.raw).toContain('Doom Shelter');
+    const body = build.items.find(i => i.slot === 'Body Armour');
+    expect(body).toBeDefined();
+    expect(body.raw).toContain("Kaom's Heart");
+  });
+
+  it('parses legacy format with Slot elements directly inside Items', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build className="Witch" level="80" ascendClassName="" buildName="Legacy"/>
+  <Tree>
+    <Spec treeVersion="3_25" classId="3" ascendClassId="0" nodes="100">
+    </Spec>
+  </Tree>
+  <Skills></Skills>
+  <Items>
+    <Item id="1">
+Rarity: RARE
+Storm Brow
+Hubris Circlet
+Energy Shield: 200
++50 to maximum Mana
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Gale Wrap
+Vaal Regalia
+Energy Shield: 400
++70 to maximum Life
+    </Item>
+    <Slot name="Helmet" itemId="1"/>
+    <Slot name="Body Armour" itemId="2"/>
+  </Items>
+  <Config></Config>
+  <Notes></Notes>
+</PathOfBuilding>`;
+
+    const build = xmlToBuild(xml);
+
+    // itemsById should be populated
+    expect(build.itemsById['1']).toContain('Storm Brow');
+    expect(build.itemsById['2']).toContain('Gale Wrap');
+
+    // itemSlots from top-level Slot elements
+    expect(build.itemSlots['Helmet']).toBe('1');
+    expect(build.itemSlots['Body Armour']).toBe('2');
+
+    // items array resolved from slots
+    expect(build.items).toHaveLength(2);
+    const helmet = build.items.find(i => i.slot === 'Helmet');
+    expect(helmet).toBeDefined();
+    expect(helmet.raw).toContain('Storm Brow');
+  });
+
+  it('still supports our format with slot attribute on Item elements', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build className="Ranger" level="85" ascendClassName="" buildName="Our Format"/>
+  <Tree></Tree>
+  <Skills></Skills>
+  <Items>
+    <Item slot="Helmet">Rarity: RARE\nTest Helm\nRoyal Burgonet</Item>
+    <Item slot="Body Armour">Rarity: RARE\nTest Chest\nGlorious Plate</Item>
+  </Items>
+  <Config></Config>
+  <Notes></Notes>
+</PathOfBuilding>`;
+
+    const build = xmlToBuild(xml);
+    expect(build.items).toHaveLength(2);
+    expect(build.items[0].slot).toBe('Helmet');
+    expect(build.items[0].raw).toContain('Test Helm');
+    expect(build.items[1].slot).toBe('Body Armour');
+  });
+
+  it('handles Item with variant attribute', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build className="Shadow" level="90" ascendClassName="" buildName="Variant"/>
+  <Tree>
+    <Spec treeVersion="3_25" classId="6" ascendClassId="0" nodes="100">
+    </Spec>
+  </Tree>
+  <Skills></Skills>
+  <Items activeItemSet="1">
+    <Item id="1" variant="2">
+Rarity: UNIQUE
+Atziri&apos;s Splendour
+Sacrificial Garb
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config></Config>
+  <Notes></Notes>
+</PathOfBuilding>`;
+
+    const build = xmlToBuild(xml);
+    expect(build.itemsById['1']).toContain("Atziri's Splendour");
+    expect(build.itemSlots['Body Armour']).toBe('1');
+    expect(build.items).toHaveLength(1);
+    expect(build.items[0].slot).toBe('Body Armour');
+  });
+
+  it('uses active ItemSet when multiple exist', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build className="Duelist" level="90" ascendClassName="" buildName="MultiSet"/>
+  <Tree>
+    <Spec treeVersion="3_25" classId="4" ascendClassId="0" nodes="100">
+    </Spec>
+  </Tree>
+  <Skills></Skills>
+  <Items activeItemSet="2">
+    <Item id="1">
+Rarity: RARE
+Alpha Helm
+Royal Burgonet
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Beta Helm
+Eternal Burgonet
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Helmet" itemId="1"/>
+    </ItemSet>
+    <ItemSet id="2">
+      <Slot name="Helmet" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config></Config>
+  <Notes></Notes>
+</PathOfBuilding>`;
+
+    const build = xmlToBuild(xml);
+    // activeItemSet="2" so should use ItemSet id="2"
+    expect(build.itemSlots['Helmet']).toBe('2');
+    expect(build.items).toHaveLength(1);
+    expect(build.items[0].raw).toContain('Beta Helm');
+  });
+
+  it('Build constructor initializes itemsById and itemSlots', () => {
+    const build = new Build();
+    expect(build.itemsById).toEqual({});
+    expect(build.itemSlots).toEqual({});
+  });
+});
