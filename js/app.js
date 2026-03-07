@@ -5,7 +5,7 @@ import { TabPanel } from './ui/tab-panel.js';
 import { StatSidebar } from './ui/stat-sidebar.js';
 import { ModDB } from './engine/mod-db.js';
 import { parseMod } from './engine/mod-parser.js';
-import { initModDB } from './engine/calc-setup.js';
+import { initModDB, mergeItemMods } from './engine/calc-setup.js';
 import { doActorAttribs, doActorLifeMana } from './engine/calc-perform.js';
 import { calcResistances, calcBlock, calcDefences } from './engine/calc-defence.js';
 import { TreeData } from './tree/tree-data.js';
@@ -18,6 +18,8 @@ import { importFromShareCode, importFromXml, exportAsXml, copyShareCode } from '
 import { Build } from './io/build-xml.js';
 import { parseClusterJewel } from './models/cluster-jewel.js';
 import { buildSubgraph } from './tree/subgraph-builder.js';
+import { Item } from './models/item.js';
+import { BaseTypeRegistry } from './data/base-types.js';
 
 const TAB_NAMES = ['Tree', 'Skills', 'Items', 'Calcs', 'Config', 'Import', 'Notes'];
 const TREE_DATA_URL = 'js/data/tree/3_25.json';
@@ -49,9 +51,14 @@ class PoBApp {
     this._treeLoaded = false;
     this._animFrameId = null;
     this._clusterData = null;
+
+    // Item state
+    this.baseTypeRegistry = null;
+    this.resolvedItems = {};  // slot name → Item instance
   }
 
   init() {
+    this.baseTypeRegistry = new BaseTypeRegistry();
     this._initMenuBar();
     this._initTabs();
     this._initSidebar();
@@ -132,12 +139,6 @@ class PoBApp {
       const zoom = Math.min(zoomX, zoomY);
       this.treeRenderer.setCamera(centerX, centerY, zoom);
 
-      // Load sprite textures
-      this._loadTreeTextures();
-
-      // Build instances
-      this._rebuildTreeInstances();
-
       // Set up interaction
       this.treeInteraction = new TreeInteraction(this.treeRenderer, this.treeData);
       this.treeInteraction.attachToCanvas(canvas);
@@ -195,12 +196,15 @@ class PoBApp {
         });
       }
 
-      // Hide the placeholder info
-      const treeInfo = document.querySelector('.tree-info');
-      if (treeInfo) treeInfo.style.display = 'none';
-
-      // Start render loop
+      // Start render loop (initially renders just the clear color)
       this._startRenderLoop();
+
+      // Load sprite textures, then build instances and reveal the tree
+      this._loadTreeTextures().then(() => {
+        this._rebuildTreeInstances();
+        const treeInfo = document.querySelector('.tree-info');
+        if (treeInfo) treeInfo.style.display = 'none';
+      });
 
       // Handle resize
       this._resizeHandler = () => {
@@ -651,8 +655,8 @@ class PoBApp {
             <span class="tree-search-count" id="tree-search-count"></span>
           </div>
           <div class="tree-info">
-            <p>Passive Skill Tree</p>
-            <p class="tree-hint">${this._treeLoaded ? 'Initializing renderer...' : 'Loading tree data...'}</p>
+            <div class="tree-loading-spinner"></div>
+            <p class="tree-hint">${this._treeLoaded ? 'Loading tree assets...' : 'Loading tree data...'}</p>
           </div>
           <div class="tree-zoom-controls">
             <button class="btn" id="zoom-in">+</button>
@@ -928,6 +932,15 @@ class PoBApp {
       }
     }
 
+    // Add mods from equipped items
+    if (Object.keys(this.resolvedItems).length > 0) {
+      const itemEnv = { player: { modDB } };
+      mergeItemMods(itemEnv, this.resolvedItems);
+      // Store weapon data for future offence calc use
+      this._weaponData1 = itemEnv.player.weaponData1 || null;
+      this._weaponData2 = itemEnv.player.weaponData2 || null;
+    }
+
     const output = {};
     const actor = { modDB, output };
 
@@ -960,6 +973,19 @@ class PoBApp {
       this.level = build.level;
       const levelInput = document.getElementById('level-input');
       if (levelInput) levelInput.value = build.level;
+    }
+
+    // Apply items
+    this.resolvedItems = {};
+    if (build.items && build.items.length > 0 && this.baseTypeRegistry) {
+      for (const { slot, raw } of build.items) {
+        if (slot && raw) {
+          const item = new Item(raw);
+          item.resolveBase(this.baseTypeRegistry);
+          item.buildModList();
+          this.resolvedItems[slot] = item;
+        }
+      }
     }
 
     // Apply tree nodes from the active spec
@@ -1002,6 +1028,14 @@ class PoBApp {
               this.treeAllocation.spec._applySubgraph(nodeId, subgraph);
             }
           }
+        }
+      }
+
+      // Second pass: allocate synthetic subgraph nodes that now exist
+      // (Lua PoB does this via allocSubgraphNodes after all subgraphs are built)
+      for (const nodeId of nodeIds) {
+        if (this.treeData.nodes[nodeId] && !this.treeAllocation.spec.allocated.has(nodeId)) {
+          this.treeAllocation.spec.allocated.add(nodeId);
         }
       }
     }
