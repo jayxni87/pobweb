@@ -299,6 +299,39 @@ function convertDirectory(inputDir, outputDir) {
   }
 }
 
+/**
+ * Convert Lua base item files that use `itemBases["Name"] = { ... }` assignments.
+ * Each .lua file becomes a JSON object mapping base names to their data.
+ */
+function convertBases(inputDir, outputDir) {
+  mkdirSync(outputDir, { recursive: true });
+  for (const entry of readdirSync(inputDir)) {
+    if (extname(entry) !== '.lua') continue;
+    const fullPath = join(inputDir, entry);
+    const lua = readFileSync(fullPath, 'utf-8');
+
+    const result = {};
+    // Match each itemBases["Name"] = { ... } assignment
+    const assignRegex = /itemBases\["([^"]+)"\]\s*=\s*\{/g;
+    let match;
+    while ((match = assignRegex.exec(lua)) !== null) {
+      const name = match[1];
+      // Find the opening brace position for parseLuaTable
+      const braceStart = match.index + match[0].length - 1; // position of '{'
+      // Extract from '{' onward and parse with parseLuaTable
+      const tableStr = lua.substring(braceStart);
+      result[name] = parseLuaTable(tableStr);
+    }
+
+    const outName = basename(entry, '.lua') + '.json';
+    const outputPath = join(outputDir, outName);
+    writeFileSync(outputPath, JSON.stringify(result, null, 0));
+    const inSize = (statSync(fullPath).size / 1024).toFixed(0);
+    const outSize = (statSync(outputPath).size / 1024).toFixed(0);
+    console.log(`  ${basename(entry)} (${inSize}KB) → ${outName} (${outSize}KB)`);
+  }
+}
+
 // Only run CLI when executed directly
 if (process.argv[1] && process.argv[1].includes('convert-lua-data')) {
   console.log('Converting Lua data to JSON...');
@@ -310,7 +343,7 @@ if (process.argv[1] && process.argv[1].includes('convert-lua-data')) {
   convertFile(join(POB_SRC, 'Data', 'Gems.lua'), join(OUT_DIR, 'gems.json'));
 
   console.log('\n--- Bases ---');
-  convertDirectory(join(POB_SRC, 'Data', 'Bases'), join(OUT_DIR, 'bases'));
+  convertBases(join(POB_SRC, 'Data', 'Bases'), join(OUT_DIR, 'bases'));
 
   console.log('\n--- Uniques ---');
   convertDirectory(join(POB_SRC, 'Data', 'Uniques'), join(OUT_DIR, 'uniques'));
