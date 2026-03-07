@@ -712,56 +712,107 @@ class PoBApp {
     // Tree is always visible in #tree-layer — nothing to render here
   }
 
+  _getGemColor(gem) {
+    const data = gem.gemData;
+    if (!data) return 'gem-color-default';
+    const str = data.reqStr || 0;
+    const dex = data.reqDex || 0;
+    const int = data.reqInt || 0;
+    if (str >= dex && str >= int && str > 0) return 'gem-color-str';
+    if (dex >= str && dex >= int && dex > 0) return 'gem-color-dex';
+    if (int > 0) return 'gem-color-int';
+    return 'gem-color-default';
+  }
+
+  _isSupport(gem) {
+    return !!(gem.gemData?.tags?.support);
+  }
+
   _renderSkillsTab() {
     if (!this.build) {
       this.build = new Build();
     }
-    const skills = this.build.skills;
-    const mainGroup = this.build.mainSocketGroup || 0;
-    const selIdx = this._selectedSkillGroup;
+    const skillSets = this.build.skillSets || [];
+    const activeSetId = this.build.activeSkillSet || 1;
 
-    // Build group list HTML
-    let groupListHtml = '';
-    if (skills.length === 0) {
-      groupListHtml = '<div class="list-empty">No socket groups. Click + New to add one.</div>';
+    // Skill set dropdown (only if multiple sets exist)
+    let setDropdownHtml = '';
+    if (skillSets.length > 1) {
+      const options = skillSets.map(s =>
+        `<option value="${s.id}"${s.id === activeSetId ? ' selected' : ''}>${escapeHtml(s.title || `Set ${s.id}`)}</option>`
+      ).join('');
+      setDropdownHtml = `<select class="skills-set-select" id="skills-set-select" aria-label="Select skill set">${options}</select>`;
+    }
+
+    // Get the active set's groups
+    const activeSet = skillSets.find(s => s.id === activeSetId) || skillSets[0];
+    const groups = activeSet?.groups || this.build.skills || [];
+    const mainGroup = this.build.mainSocketGroup || 0;
+
+    // Render socket group cards
+    let cardsHtml = '';
+    if (groups.length === 0) {
+      cardsHtml = '<div class="skills-empty">No socket groups in this skill set.</div>';
     } else {
-      for (let i = 0; i < skills.length; i++) {
-        const g = skills[i];
-        const isMain = i === mainGroup;
-        const selected = i === selIdx ? ' selected' : '';
-        const gemCount = (g.gems || []).length;
-        const displayLabel = g.label || (g.gems?.length ? g.gems[0].name || 'Unnamed' : 'Empty group');
-        groupListHtml += `<div class="list-item${selected}" data-group-idx="${i}">` +
-          `<span class="skill-star${isMain ? ' active' : ''}" data-star-idx="${i}" title="Set as main skill group">\u2605</span>` +
-          `<input type="checkbox" class="skill-group-enable" data-enable-idx="${i}"${g.enabled !== false ? ' checked' : ''}>` +
-          `<span class="skill-group-label">${escapeHtml(displayLabel)}</span>` +
-          `<span class="skill-gem-count">${gemCount}g</span>` +
-          `</div>`;
+      for (let gi = 0; gi < groups.length; gi++) {
+        const group = groups[gi];
+        const gems = group.gems || [];
+        const isMain = gi === mainGroup;
+        const slotLabel = group.slot || group.label || '';
+        const disabledClass = group.enabled === false ? ' sg-card-disabled' : '';
+
+        // Separate first active gem from supports
+        let activeGemIdx = -1;
+        const gemEntries = [];
+        for (let i = 0; i < gems.length; i++) {
+          const gem = gems[i];
+          const isSupport = this._isSupport(gem);
+          if (!isSupport && activeGemIdx === -1) activeGemIdx = i;
+          gemEntries.push({ gem, isSupport, index: i });
+        }
+
+        // Build gem lines with connector classes
+        let gemsHtml = '';
+        // Count supports to assign connector classes
+        const supports = gemEntries.filter(e => e.isSupport);
+        for (const entry of gemEntries) {
+          const { gem, isSupport, index } = entry;
+          const colorClass = this._getGemColor(gem);
+          const enabledClass = gem.enabled === false ? ' gem-disabled' : '';
+          let connectorClass = '';
+          if (isSupport && supports.length > 0) {
+            const supIdx = supports.indexOf(entry);
+            if (supIdx === 0 && supports.length === 1) connectorClass = ' gem-last';
+            else if (supIdx === 0) connectorClass = ' gem-first';
+            else if (supIdx === supports.length - 1) connectorClass = ' gem-last';
+            else connectorClass = ' gem-middle';
+          }
+
+          const levelQual = gem.level !== 20 || gem.quality > 0
+            ? `<span class="gem-lq">${gem.level !== 20 ? gem.level : ''}${gem.quality > 0 ? `/${gem.quality}` : ''}</span>`
+            : '';
+
+          gemsHtml += `<div class="gem-entry ${colorClass}${connectorClass}${enabledClass}" data-group="${gi}" data-gem="${index}">${escapeHtml(gem.name || '?')}${levelQual}</div>`;
+        }
+
+        cardsHtml += `
+          <div class="sg-card${disabledClass}${isMain ? ' sg-card-main' : ''}" data-sg-idx="${gi}">
+            ${slotLabel ? `<div class="sg-slot-label">${escapeHtml(slotLabel)}</div>` : ''}
+            <div class="sg-gems">${gemsHtml || '<div class="sg-empty-gems">Empty</div>'}</div>
+          </div>`;
       }
     }
 
-    // Build right panel HTML
-    let rightPanelHtml;
-    if (selIdx !== null && selIdx >= 0 && selIdx < skills.length) {
-      rightPanelHtml = this._renderSkillGroupEditor(selIdx, skills[selIdx]);
-    } else {
-      rightPanelHtml = '<div class="panel-placeholder">Select or create a socket group to edit gems</div>';
-    }
-
     this.tabContent.innerHTML = `
-      <div class="panel-layout">
-        <div class="panel-sidebar">
-          <div class="panel-header">
-            <span>Socket Groups</span>
-            <button class="btn btn-sm" id="add-group">+ New</button>
-          </div>
-          <div class="panel-list" id="skill-group-list">
-            ${groupListHtml}
-          </div>
+      <div class="skills-tab">
+        <div class="skills-header">
+          <h2 class="skills-title">Gems</h2>
+          ${setDropdownHtml}
+          <button class="btn btn-sm" id="add-group">+ New Group</button>
+          <button class="btn btn-sm" id="skills-edit-toggle">${this._skillsEditMode ? 'Done' : 'Edit'}</button>
         </div>
-        <div class="panel-main" id="skill-editor-panel">
-          ${rightPanelHtml}
-        </div>
+        <div class="skills-cards" id="skills-cards">${cardsHtml}</div>
+        ${this._skillsEditMode && this._selectedSkillGroup != null ? this._renderSkillGroupEditor(this._selectedSkillGroup, groups[this._selectedSkillGroup]) : ''}
       </div>
     `;
 
@@ -769,6 +820,7 @@ class PoBApp {
   }
 
   _renderSkillGroupEditor(idx, group) {
+    if (!group) return '';
     const SLOTS = ['None', 'Weapon 1', 'Weapon 2', 'Helmet', 'Body Armour', 'Gloves', 'Boots', 'Amulet', 'Ring 1', 'Ring 2', 'Belt'];
     const slotOptions = SLOTS.map(s => {
       const val = s === 'None' ? '' : s;
@@ -780,8 +832,8 @@ class PoBApp {
     let gemRowsHtml = '';
     for (let gi = 0; gi < gems.length; gi++) {
       const gem = gems[gi];
-      const isSupport = gem.gemData?.tags?.support || false;
-      gemRowsHtml += `<tr class="gem-row${isSupport ? ' gem-support' : ''}" data-gem-idx="${gi}">` +
+      const colorClass = this._getGemColor(gem);
+      gemRowsHtml += `<tr class="gem-row ${colorClass}" data-gem-idx="${gi}">` +
         `<td><input type="checkbox" class="gem-enable-cb" data-gem-enable="${gi}"${gem.enabled !== false ? ' checked' : ''}></td>` +
         `<td><div class="gem-name-wrapper"><input type="text" class="input-sm gem-name-input" data-gem-name="${gi}" value="${escapeHtml(gem.name || '')}" placeholder="Type gem name..." autocomplete="off"></div></td>` +
         `<td><input type="number" class="input-sm gem-level" data-gem-level="${gi}" value="${gem.level || 1}" min="1" max="40"></td>` +
@@ -791,67 +843,78 @@ class PoBApp {
     }
 
     return `
-      <div class="skill-editor-header">
-        <label>Slot: <select class="input-sm" id="skill-slot">${slotOptions}</select></label>
-        <label>Label: <input type="text" class="input-sm" id="skill-label" value="${escapeHtml(group.label || '')}" placeholder="Group label..." style="width:120px"></label>
-        <label><input type="checkbox" id="skill-enabled"${group.enabled !== false ? ' checked' : ''}> Enabled</label>
-        <label><input type="checkbox" id="skill-fulldps"${group.includeInFullDPS ? ' checked' : ''}> Include in Full DPS</label>
-        <button class="btn btn-sm btn-danger" id="delete-group">Delete Group</button>
+      <div class="skill-editor-panel" id="skill-editor-panel">
+        <div class="skill-editor-header">
+          <label>Slot: <select class="input-sm" id="skill-slot">${slotOptions}</select></label>
+          <label>Label: <input type="text" class="input-sm" id="skill-label" value="${escapeHtml(group.label || '')}" placeholder="Group label..." style="width:120px"></label>
+          <label><input type="checkbox" id="skill-enabled"${group.enabled !== false ? ' checked' : ''}> Enabled</label>
+          <label><input type="checkbox" id="skill-fulldps"${group.includeInFullDPS ? ' checked' : ''}> Full DPS</label>
+          <button class="btn btn-sm btn-danger" id="delete-group">Delete Group</button>
+        </div>
+        <table class="gem-table">
+          <thead><tr><th></th><th>Gem</th><th>Level</th><th>Qual</th><th></th></tr></thead>
+          <tbody id="gem-table-body">${gemRowsHtml}</tbody>
+        </table>
+        <button class="btn btn-sm" id="add-gem">+ Add Gem</button>
       </div>
-      <table class="gem-table">
-        <thead><tr><th></th><th>Gem</th><th>Level</th><th>Qual</th><th></th></tr></thead>
-        <tbody id="gem-table-body">${gemRowsHtml}</tbody>
-      </table>
-      <button class="btn btn-sm" id="add-gem">+ Add Gem</button>
     `;
   }
 
   _wireSkillsTabEvents() {
-    const skills = this.build.skills;
+    const activeSet = this.build.skillSets?.find(s => s.id === (this.build.activeSkillSet || 1)) || this.build.skillSets?.[0];
+    const skills = activeSet?.groups || this.build.skills;
 
-    // Group list item clicks (select group)
-    const groupList = document.getElementById('skill-group-list');
-    if (groupList) {
-      groupList.addEventListener('click', (e) => {
-        // Star click
-        const starEl = e.target.closest('[data-star-idx]');
-        if (starEl) {
-          e.stopPropagation();
-          this.build.mainSocketGroup = parseInt(starEl.dataset.starIdx, 10);
+    // Skill set dropdown
+    document.getElementById('skills-set-select')?.addEventListener('change', (e) => {
+      const newSetId = parseInt(e.target.value, 10);
+      this.build.activeSkillSet = newSetId;
+      const newSet = this.build.skillSets.find(s => s.id === newSetId);
+      if (newSet) this.build.skills = newSet.groups;
+      this._selectedSkillGroup = null;
+      this._resolveGems();
+      this._renderSkillsTab();
+      this._runCalc();
+    });
+
+    // Edit toggle
+    document.getElementById('skills-edit-toggle')?.addEventListener('click', () => {
+      this._skillsEditMode = !this._skillsEditMode;
+      if (!this._skillsEditMode) this._selectedSkillGroup = null;
+      this._renderSkillsTab();
+    });
+
+    // Card clicks — select for editing (in edit mode) or set as main
+    const cardsEl = document.getElementById('skills-cards');
+    if (cardsEl) {
+      cardsEl.addEventListener('click', (e) => {
+        const card = e.target.closest('[data-sg-idx]');
+        if (!card) return;
+        const idx = parseInt(card.dataset.sgIdx, 10);
+        if (this._skillsEditMode) {
+          this._selectedSkillGroup = idx;
           this._renderSkillsTab();
-          return;
-        }
-        // Enable checkbox
-        const enableEl = e.target.closest('[data-enable-idx]');
-        if (enableEl) {
-          const idx = parseInt(enableEl.dataset.enableIdx, 10);
-          skills[idx].enabled = enableEl.checked;
-          return;
-        }
-        // Group select
-        const itemEl = e.target.closest('[data-group-idx]');
-        if (itemEl) {
-          this._selectedSkillGroup = parseInt(itemEl.dataset.groupIdx, 10);
+        } else {
+          this.build.mainSocketGroup = idx;
           this._renderSkillsTab();
+          this._runCalc();
         }
       });
     }
 
     // Add group button
     document.getElementById('add-group')?.addEventListener('click', () => {
-      skills.push({
-        enabled: true,
-        slot: '',
-        label: '',
-        mainActiveSkill: 1,
-        includeInFullDPS: false,
-        gems: [],
-      });
+      const newGroup = {
+        enabled: true, slot: '', label: '', mainActiveSkill: 1,
+        includeInFullDPS: false, gems: [],
+      };
+      skills.push(newGroup);
       this._selectedSkillGroup = skills.length - 1;
+      this._skillsEditMode = true;
       this._renderSkillsTab();
     });
 
-    // If no group selected, stop here
+    // Editor events (only in edit mode)
+    if (!this._skillsEditMode) return;
     const selIdx = this._selectedSkillGroup;
     if (selIdx === null || selIdx < 0 || selIdx >= skills.length) return;
     const group = skills[selIdx];
@@ -864,29 +927,25 @@ class PoBApp {
         this.build.mainSocketGroup = Math.max(0, skills.length - 1);
       }
       this._renderSkillsTab();
+      this._runCalc();
     });
 
     // Slot dropdown
     document.getElementById('skill-slot')?.addEventListener('change', (e) => {
       group.slot = e.target.value;
+      this._renderSkillsTab();
     });
 
     // Label input
     document.getElementById('skill-label')?.addEventListener('input', (e) => {
       group.label = e.target.value;
-      // Update list item label inline
-      const listItem = groupList?.querySelector(`[data-group-idx="${selIdx}"] .skill-group-label`);
-      if (listItem) {
-        listItem.textContent = group.label || (group.gems?.length ? group.gems[0].name || 'Unnamed' : 'Empty group');
-      }
     });
 
     // Enabled checkbox
     document.getElementById('skill-enabled')?.addEventListener('change', (e) => {
       group.enabled = e.target.checked;
-      // Sync list checkbox
-      const listCb = groupList?.querySelector(`[data-enable-idx="${selIdx}"]`);
-      if (listCb) listCb.checked = e.target.checked;
+      this._renderSkillsTab();
+      this._runCalc();
     });
 
     // Full DPS checkbox
@@ -897,36 +956,37 @@ class PoBApp {
     // Gem table events
     const gemBody = document.getElementById('gem-table-body');
     if (gemBody) {
-      // Enable checkbox
       gemBody.addEventListener('change', (e) => {
         const enableCb = e.target.closest('[data-gem-enable]');
         if (enableCb) {
           const gi = parseInt(enableCb.dataset.gemEnable, 10);
           group.gems[gi].enabled = enableCb.checked;
+          this._runCalc();
         }
         const levelInput = e.target.closest('[data-gem-level]');
         if (levelInput) {
           const gi = parseInt(levelInput.dataset.gemLevel, 10);
           group.gems[gi].level = Math.max(1, parseInt(levelInput.value) || 1);
+          this._runCalc();
         }
         const qualInput = e.target.closest('[data-gem-quality]');
         if (qualInput) {
           const gi = parseInt(qualInput.dataset.gemQuality, 10);
           group.gems[gi].quality = Math.max(0, parseInt(qualInput.value) || 0);
+          this._runCalc();
         }
       });
 
-      // Remove gem button
       gemBody.addEventListener('click', (e) => {
         const removeBtn = e.target.closest('[data-gem-remove]');
         if (removeBtn) {
           const gi = parseInt(removeBtn.dataset.gemRemove, 10);
           group.gems.splice(gi, 1);
           this._renderSkillsTab();
+          this._runCalc();
         }
       });
 
-      // Gem name input (searchable dropdown)
       gemBody.addEventListener('input', (e) => {
         const nameInput = e.target.closest('[data-gem-name]');
         if (nameInput) {
@@ -936,7 +996,6 @@ class PoBApp {
         }
       });
 
-      // Keyboard navigation for dropdown
       gemBody.addEventListener('keydown', (e) => {
         const nameInput = e.target.closest('[data-gem-name]');
         if (nameInput && e.key === 'Escape') {
@@ -944,7 +1003,6 @@ class PoBApp {
         }
       });
 
-      // Blur to close dropdown (with delay)
       gemBody.addEventListener('focusout', (e) => {
         const nameInput = e.target.closest('[data-gem-name]');
         if (nameInput) {
@@ -956,19 +1014,11 @@ class PoBApp {
     // Add gem button
     document.getElementById('add-gem')?.addEventListener('click', () => {
       group.gems.push({
-        name: '',
-        gemId: '',
-        variantId: '',
-        skillId: '',
-        level: 1,
-        quality: 0,
-        qualityId: 'Default',
-        enabled: true,
-        count: 1,
-        gemData: null,
+        name: '', gemId: '', variantId: '', skillId: '',
+        level: 20, quality: 0, qualityId: 'Default',
+        enabled: true, count: 1, gemData: null,
       });
       this._renderSkillsTab();
-      // Focus new gem name input
       setTimeout(() => {
         const inputs = document.querySelectorAll('.gem-name-input');
         if (inputs.length) inputs[inputs.length - 1].focus();
@@ -978,7 +1028,6 @@ class PoBApp {
 
   _showGemDropdown(inputEl, gemIndex, group) {
     const query = inputEl.value.trim();
-    // Remove existing dropdown
     this._hideGemDropdown(inputEl);
     if (query.length < 2 || !this.gemRegistry) return;
 
@@ -992,13 +1041,14 @@ class PoBApp {
       item.className = 'gem-dropdown-item';
       item.textContent = gem.name;
       item.addEventListener('mousedown', (e) => {
-        e.preventDefault(); // prevent blur
+        e.preventDefault();
         const g = group.gems[gemIndex];
         g.name = gem.name;
         g.gemData = gem;
         g.gemId = gem.gameId || '';
         g.skillId = gem.grantedEffectId || '';
         this._renderSkillsTab();
+        this._runCalc();
       });
       dropdown.appendChild(item);
     }
@@ -1657,6 +1707,8 @@ class PoBApp {
       masteryEffects,
       jewelSockets,
       skills: this.build?.skills || [],
+      skillSets: this.build?.skillSets || [],
+      activeSkillSet: this.build?.activeSkillSet || 1,
       mainSocketGroup: this.build?.mainSocketGroup || 0,
     });
   }

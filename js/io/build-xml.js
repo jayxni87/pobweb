@@ -13,6 +13,8 @@ export class Build {
     this.specs = opts.specs || [];       // [{title, classId, ascendClassId, treeVersion, nodes, masteryEffects, jewelSockets}]
     this.activeSpec = opts.activeSpec || 0; // 0-indexed
     this.skills = opts.skills || [];
+    this.skillSets = opts.skillSets || [];  // [{id, title, groups}]
+    this.activeSkillSet = opts.activeSkillSet || 1; // 1-based
     this.mainSocketGroup = opts.mainSocketGroup || 0;
     this.items = opts.items || [];
     this.itemsById = opts.itemsById || {};   // id → raw item text
@@ -62,24 +64,27 @@ export function buildToXml(build) {
   }
   xml += '  </Tree>\n';
 
-  // Skills section — PoB format
-  xml += `  <Skills activeSkillSet="1" mainSocketGroup="${build.mainSocketGroup || 0}">\n`;
-  xml += '    <SkillSet id="1">\n';
-  for (const group of build.skills) {
-    const enabled = group.enabled !== undefined ? group.enabled : true;
-    xml += `      <Skill enabled="${enabled}" slot="${escapeXml(group.slot || '')}" label="${escapeXml(group.label || '')}" mainActiveSkill="${group.mainActiveSkill || 1}" includeInFullDPS="${group.includeInFullDPS ? 'true' : 'false'}">\n`;
-    for (const gem of (group.gems || [])) {
-      const gemEnabled = gem.enabled !== undefined ? gem.enabled : true;
-      let attrs = `nameSpec="${escapeXml(gem.name || '')}" level="${gem.level || 1}" quality="${gem.quality || 0}"`;
-      if (gem.gemId) attrs += ` gemId="${escapeXml(gem.gemId)}"`;
-      if (gem.variantId) attrs += ` variantId="${escapeXml(gem.variantId)}"`;
-      if (gem.skillId) attrs += ` skillId="${escapeXml(gem.skillId)}"`;
-      attrs += ` qualityId="${escapeXml(gem.qualityId || 'Default')}" enabled="${gemEnabled}" count="${gem.count || 1}"`;
-      xml += `        <Gem ${attrs}/>\n`;
+  // Skills section — PoB format with multiple skill sets
+  xml += `  <Skills activeSkillSet="${build.activeSkillSet || 1}" mainSocketGroup="${build.mainSocketGroup || 0}">\n`;
+  const sets = build.skillSets.length > 0 ? build.skillSets : [{ id: 1, title: 'Default', groups: build.skills }];
+  for (const set of sets) {
+    xml += `    <SkillSet id="${set.id}"${set.title ? ` title="${escapeXml(set.title)}"` : ''}>\n`;
+    for (const group of (set.groups || [])) {
+      const enabled = group.enabled !== undefined ? group.enabled : true;
+      xml += `      <Skill enabled="${enabled}" slot="${escapeXml(group.slot || '')}" label="${escapeXml(group.label || '')}" mainActiveSkill="${group.mainActiveSkill || 1}" includeInFullDPS="${group.includeInFullDPS ? 'true' : 'false'}">\n`;
+      for (const gem of (group.gems || [])) {
+        const gemEnabled = gem.enabled !== undefined ? gem.enabled : true;
+        let attrs = `nameSpec="${escapeXml(gem.name || '')}" level="${gem.level || 1}" quality="${gem.quality || 0}"`;
+        if (gem.gemId) attrs += ` gemId="${escapeXml(gem.gemId)}"`;
+        if (gem.variantId) attrs += ` variantId="${escapeXml(gem.variantId)}"`;
+        if (gem.skillId) attrs += ` skillId="${escapeXml(gem.skillId)}"`;
+        attrs += ` qualityId="${escapeXml(gem.qualityId || 'Default')}" enabled="${gemEnabled}" count="${gem.count || 1}"`;
+        xml += `        <Gem ${attrs}/>\n`;
+      }
+      xml += '      </Skill>\n';
     }
-    xml += '      </Skill>\n';
+    xml += '    </SkillSet>\n';
   }
-  xml += '    </SkillSet>\n';
   xml += '  </Skills>\n';
 
   // Items section - PoB format: <Item id="N"> + <ItemSet><Slot>
@@ -218,31 +223,23 @@ function parseXmlSimple(xml) {
     }
   }
 
-  // Parse mainSocketGroup from <Skills>
+  // Parse mainSocketGroup and activeSkillSet from <Skills>
   const skillsMatch = xml.match(/<Skills\s+([^>]*)>/);
   if (skillsMatch) {
     const msGroup = extractAttr(skillsMatch[1], 'mainSocketGroup');
     if (msGroup) build.mainSocketGroup = parseInt(msGroup, 10);
+    const activeSet = extractAttr(skillsMatch[1], 'activeSkillSet');
+    if (activeSet) build.activeSkillSet = parseInt(activeSet, 10);
   }
 
-  // Skills — try PoB <Skill> format first
-  const skillRegex = /<Skill\s+([^>]*)>([\s\S]*?)<\/Skill>/g;
-  let skillMatch;
-  while ((skillMatch = skillRegex.exec(xml)) !== null) {
-    const sAttrs = skillMatch[1];
-    const group = {
-      enabled: extractAttr(sAttrs, 'enabled') !== 'false',
-      slot: extractAttr(sAttrs, 'slot') || '',
-      label: extractAttr(sAttrs, 'label') || '',
-      mainActiveSkill: parseInt(extractAttr(sAttrs, 'mainActiveSkill') || '1', 10),
-      includeInFullDPS: extractAttr(sAttrs, 'includeInFullDPS') === 'true',
-      gems: [],
-    };
+  // Helper to parse gems from a <Skill> block
+  function parseGemsFromBlock(blockContent) {
+    const gems = [];
     const gemRegex = /<Gem\s+([\s\S]*?)\s*\/>/g;
     let gMatch;
-    while ((gMatch = gemRegex.exec(skillMatch[2])) !== null) {
+    while ((gMatch = gemRegex.exec(blockContent)) !== null) {
       const gAttrs = gMatch[1];
-      group.gems.push({
+      gems.push({
         name: extractAttr(gAttrs, 'nameSpec') || '',
         gemId: extractAttr(gAttrs, 'gemId') || '',
         variantId: extractAttr(gAttrs, 'variantId') || '',
@@ -254,40 +251,63 @@ function parseXmlSimple(xml) {
         count: parseInt(extractAttr(gAttrs, 'count') || '1', 10),
       });
     }
-    build.skills.push(group);
+    return gems;
   }
 
-  // Fallback: legacy <SkillGroup> format
-  if (build.skills.length === 0) {
-    const skillGroupRegex = /<SkillGroup\s+([^>]*)>([\s\S]*?)<\/SkillGroup>/g;
-    let sgMatch;
-    while ((sgMatch = skillGroupRegex.exec(xml)) !== null) {
-      const sgAttrs = sgMatch[1];
-      const group = {
-        enabled: true,
-        slot: extractAttr(sgAttrs, 'slot') || '',
-        label: '',
-        mainActiveSkill: 1,
-        includeInFullDPS: false,
-        gems: [],
-      };
-      const gemRegex = /<Gem\s+([\s\S]*?)\s*\/>/g;
-      let gMatch;
-      while ((gMatch = gemRegex.exec(sgMatch[2])) !== null) {
-        const gAttrs = gMatch[1];
-        group.gems.push({
-          name: extractAttr(gAttrs, 'nameSpec') || '',
-          gemId: extractAttr(gAttrs, 'gemId') || '',
-          variantId: extractAttr(gAttrs, 'variantId') || '',
-          skillId: extractAttr(gAttrs, 'skillId') || '',
-          level: parseInt(extractAttr(gAttrs, 'level') || '1', 10),
-          quality: parseInt(extractAttr(gAttrs, 'quality') || '0', 10),
-          qualityId: extractAttr(gAttrs, 'qualityId') || 'Default',
-          enabled: extractAttr(gAttrs, 'enabled') !== 'false',
-          count: parseInt(extractAttr(gAttrs, 'count') || '1', 10),
-        });
+  function parseSkillGroup(attrs, content) {
+    return {
+      enabled: extractAttr(attrs, 'enabled') !== 'false',
+      slot: extractAttr(attrs, 'slot') || '',
+      label: extractAttr(attrs, 'label') || '',
+      mainActiveSkill: parseInt(extractAttr(attrs, 'mainActiveSkill') || '1', 10),
+      includeInFullDPS: extractAttr(attrs, 'includeInFullDPS') === 'true',
+      gems: parseGemsFromBlock(content),
+    };
+  }
+
+  // Skills — try PoB <SkillSet> format first
+  const skillSetRegex = /<SkillSet\s+([^>]*)>([\s\S]*?)<\/SkillSet>/g;
+  let setMatch;
+  while ((setMatch = skillSetRegex.exec(xml)) !== null) {
+    const setAttrs = setMatch[1];
+    const setContent = setMatch[2];
+    const setObj = {
+      id: parseInt(extractAttr(setAttrs, 'id') || '1', 10),
+      title: extractAttr(setAttrs, 'title') || 'Default',
+      groups: [],
+    };
+    const skillRegex = /<Skill\s+([^>]*)>([\s\S]*?)<\/Skill>/g;
+    let skillMatch;
+    while ((skillMatch = skillRegex.exec(setContent)) !== null) {
+      setObj.groups.push(parseSkillGroup(skillMatch[1], skillMatch[2]));
+    }
+    build.skillSets.push(setObj);
+  }
+
+  // If we found skill sets, set skills to active set's groups
+  if (build.skillSets.length > 0) {
+    const activeSet = build.skillSets.find(s => s.id === build.activeSkillSet) || build.skillSets[0];
+    build.skills = activeSet.groups;
+  } else {
+    // Try bare <Skill> elements (no SkillSet wrapper)
+    const skillRegex = /<Skill\s+([^>]*)>([\s\S]*?)<\/Skill>/g;
+    let skillMatch;
+    while ((skillMatch = skillRegex.exec(xml)) !== null) {
+      build.skills.push(parseSkillGroup(skillMatch[1], skillMatch[2]));
+    }
+
+    // Fallback: legacy <SkillGroup> format
+    if (build.skills.length === 0) {
+      const skillGroupRegex = /<SkillGroup\s+([^>]*)>([\s\S]*?)<\/SkillGroup>/g;
+      let sgMatch;
+      while ((sgMatch = skillGroupRegex.exec(xml)) !== null) {
+        build.skills.push(parseSkillGroup(sgMatch[1], sgMatch[2]));
       }
-      build.skills.push(group);
+    }
+
+    // Wrap into a single skill set for consistency
+    if (build.skills.length > 0) {
+      build.skillSets = [{ id: 1, title: 'Default', groups: build.skills }];
     }
   }
 
@@ -476,66 +496,76 @@ function parseDom(doc) {
     }
   }
 
-  // Parse mainSocketGroup from <Skills>
+  // Parse mainSocketGroup and activeSkillSet from <Skills>
   const skillsEl = doc.querySelector('Skills');
   if (skillsEl) {
     const msGroup = skillsEl.getAttribute('mainSocketGroup');
     if (msGroup) build.mainSocketGroup = parseInt(msGroup, 10);
+    const activeSet = skillsEl.getAttribute('activeSkillSet');
+    if (activeSet) build.activeSkillSet = parseInt(activeSet, 10);
   }
 
-  // Skills — try PoB <Skill> format first
-  const skillEls = doc.querySelectorAll('Skill');
-  if (skillEls.length > 0) {
-    skillEls.forEach(skillEl => {
-      const group = {
-        enabled: skillEl.getAttribute('enabled') !== 'false',
-        slot: skillEl.getAttribute('slot') || '',
-        label: skillEl.getAttribute('label') || '',
-        mainActiveSkill: parseInt(skillEl.getAttribute('mainActiveSkill') || '1', 10),
-        includeInFullDPS: skillEl.getAttribute('includeInFullDPS') === 'true',
-        gems: [],
-      };
-      skillEl.querySelectorAll('Gem').forEach(g => {
-        group.gems.push({
-          name: g.getAttribute('nameSpec') || '',
-          gemId: g.getAttribute('gemId') || '',
-          variantId: g.getAttribute('variantId') || '',
-          skillId: g.getAttribute('skillId') || '',
-          level: parseInt(g.getAttribute('level') || '1', 10),
-          quality: parseInt(g.getAttribute('quality') || '0', 10),
-          qualityId: g.getAttribute('qualityId') || 'Default',
-          enabled: g.getAttribute('enabled') !== 'false',
-          count: parseInt(g.getAttribute('count') || '1', 10),
-        });
+  function parseDomGems(parentEl) {
+    const gems = [];
+    parentEl.querySelectorAll(':scope > Gem').forEach(g => {
+      gems.push({
+        name: g.getAttribute('nameSpec') || '',
+        gemId: g.getAttribute('gemId') || '',
+        variantId: g.getAttribute('variantId') || '',
+        skillId: g.getAttribute('skillId') || '',
+        level: parseInt(g.getAttribute('level') || '1', 10),
+        quality: parseInt(g.getAttribute('quality') || '0', 10),
+        qualityId: g.getAttribute('qualityId') || 'Default',
+        enabled: g.getAttribute('enabled') !== 'false',
+        count: parseInt(g.getAttribute('count') || '1', 10),
       });
-      build.skills.push(group);
     });
+    return gems;
+  }
+
+  function parseDomSkillGroup(el) {
+    return {
+      enabled: el.getAttribute('enabled') !== 'false',
+      slot: el.getAttribute('slot') || '',
+      label: el.getAttribute('label') || '',
+      mainActiveSkill: parseInt(el.getAttribute('mainActiveSkill') || '1', 10),
+      includeInFullDPS: el.getAttribute('includeInFullDPS') === 'true',
+      gems: parseDomGems(el),
+    };
+  }
+
+  // Skills — try PoB <SkillSet> format first
+  const skillSetEls = doc.querySelectorAll('SkillSet');
+  if (skillSetEls.length > 0) {
+    skillSetEls.forEach(setEl => {
+      const setObj = {
+        id: parseInt(setEl.getAttribute('id') || '1', 10),
+        title: setEl.getAttribute('title') || 'Default',
+        groups: [],
+      };
+      setEl.querySelectorAll(':scope > Skill').forEach(skillEl => {
+        setObj.groups.push(parseDomSkillGroup(skillEl));
+      });
+      build.skillSets.push(setObj);
+    });
+    const activeSetObj = build.skillSets.find(s => s.id === build.activeSkillSet) || build.skillSets[0];
+    build.skills = activeSetObj.groups;
   } else {
-    // Fallback: legacy <SkillGroup> format
-    doc.querySelectorAll('SkillGroup').forEach(sg => {
-      const group = {
-        enabled: true,
-        slot: sg.getAttribute('slot') || '',
-        label: '',
-        mainActiveSkill: 1,
-        includeInFullDPS: false,
-        gems: [],
-      };
-      sg.querySelectorAll('Gem').forEach(g => {
-        group.gems.push({
-          name: g.getAttribute('nameSpec') || '',
-          gemId: g.getAttribute('gemId') || '',
-          variantId: g.getAttribute('variantId') || '',
-          skillId: g.getAttribute('skillId') || '',
-          level: parseInt(g.getAttribute('level') || '1', 10),
-          quality: parseInt(g.getAttribute('quality') || '0', 10),
-          qualityId: g.getAttribute('qualityId') || 'Default',
-          enabled: g.getAttribute('enabled') !== 'false',
-          count: parseInt(g.getAttribute('count') || '1', 10),
-        });
+    // Try bare <Skill> elements
+    const skillEls = doc.querySelectorAll('Skill');
+    if (skillEls.length > 0) {
+      skillEls.forEach(skillEl => {
+        build.skills.push(parseDomSkillGroup(skillEl));
       });
-      build.skills.push(group);
-    });
+    } else {
+      // Fallback: legacy <SkillGroup> format
+      doc.querySelectorAll('SkillGroup').forEach(sg => {
+        build.skills.push(parseDomSkillGroup(sg));
+      });
+    }
+    if (build.skills.length > 0) {
+      build.skillSets = [{ id: 1, title: 'Default', groups: build.skills }];
+    }
   }
 
   // Items — support both formats: <Item slot="..."> (our format) and <Item id="N"> (PoB format)

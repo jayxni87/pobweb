@@ -603,4 +603,71 @@ describe('PoB Skills XML format', () => {
     expect(rebuilt.skills[0].gems[0].name).toBe('Determination');
     expect(rebuilt.skills[0].gems[1].name).toBe('Enlighten Support');
   });
+
+  it('parses multiple skill sets', () => {
+    const xml = `<?xml version="1.0"?>
+<PathOfBuilding>
+  <Build className="Witch" level="90" ascendClassName="" buildName="Test"/>
+  <Tree/>
+  <Skills activeSkillSet="2" mainSocketGroup="0">
+    <SkillSet id="1" title="Leveling">
+      <Skill enabled="true" slot="" label="" mainActiveSkill="1" includeInFullDPS="false">
+        <Gem nameSpec="Fireball" level="10" quality="0" enabled="true" count="1"/>
+      </Skill>
+    </SkillSet>
+    <SkillSet id="2" title="Endgame">
+      <Skill enabled="true" slot="Body Armour" label="Main" mainActiveSkill="1" includeInFullDPS="true">
+        <Gem nameSpec="Arc" level="20" quality="20" enabled="true" count="1"/>
+        <Gem nameSpec="Spell Echo" level="20" quality="0" enabled="true" count="1"/>
+      </Skill>
+      <Skill enabled="true" slot="" label="Auras" mainActiveSkill="1" includeInFullDPS="false">
+        <Gem nameSpec="Determination" level="20" quality="0" enabled="true" count="1"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"/>
+  <Config/>
+  <Notes/>
+</PathOfBuilding>`;
+
+    const build = xmlToBuild(xml);
+    expect(build.skillSets).toHaveLength(2);
+    expect(build.activeSkillSet).toBe(2);
+    expect(build.skillSets[0].title).toBe('Leveling');
+    expect(build.skillSets[0].groups).toHaveLength(1);
+    expect(build.skillSets[1].title).toBe('Endgame');
+    expect(build.skillSets[1].groups).toHaveLength(2);
+
+    // Active set's groups should be in build.skills
+    expect(build.skills).toHaveLength(2);
+    expect(build.skills[0].slot).toBe('Body Armour');
+    expect(build.skills[0].gems[0].name).toBe('Arc');
+  });
+
+  it('round-trips multiple skill sets', () => {
+    const build = new Build({
+      skillSets: [
+        { id: 1, title: 'Leveling', groups: [
+          { enabled: true, slot: '', label: '', mainActiveSkill: 1, includeInFullDPS: false,
+            gems: [{ name: 'Fireball', level: 10, quality: 0, enabled: true, count: 1 }] },
+        ] },
+        { id: 2, title: 'Maps', groups: [
+          { enabled: true, slot: 'Body Armour', label: 'Main', mainActiveSkill: 1, includeInFullDPS: true,
+            gems: [{ name: 'Arc', level: 20, quality: 20, enabled: true, count: 1 }] },
+        ] },
+      ],
+      activeSkillSet: 2,
+    });
+
+    const xml = buildToXml(build);
+    expect(xml).toContain('activeSkillSet="2"');
+    expect(xml).toContain('title="Leveling"');
+    expect(xml).toContain('title="Maps"');
+
+    const rebuilt = xmlToBuild(xml);
+    expect(rebuilt.skillSets).toHaveLength(2);
+    expect(rebuilt.activeSkillSet).toBe(2);
+    expect(rebuilt.skillSets[0].title).toBe('Leveling');
+    expect(rebuilt.skillSets[1].title).toBe('Maps');
+  });
 });
