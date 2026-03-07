@@ -5,7 +5,8 @@ import { TabPanel } from './ui/tab-panel.js';
 import { StatSidebar } from './ui/stat-sidebar.js';
 import { ModDB } from './engine/mod-db.js';
 import { parseMod } from './engine/mod-parser.js';
-import { initModDB, mergeItemMods } from './engine/calc-setup.js';
+import { initModDB, mergeItemMods, mergeSkillMods } from './engine/calc-setup.js';
+import { buildActiveSkillList } from './engine/skill-calc.js';
 import { doActorAttribs, doActorLifeMana } from './engine/calc-perform.js';
 import { calcResistances, calcBlock, calcDefences } from './engine/calc-defence.js';
 import { TreeData } from './tree/tree-data.js';
@@ -63,6 +64,8 @@ class PoBApp {
 
     // Skills state
     this.gemRegistry = null;
+    this.skillsData = null;
+    this.skillStatMap = null;
     this._selectedSkillGroup = null; // index into this.build.skills
   }
 
@@ -77,6 +80,7 @@ class PoBApp {
     this._runCalc();
     this._loadTreeData();
     this._loadGemRegistry();
+    this._loadSkillsData();
   }
 
   async _loadGemRegistry() {
@@ -86,6 +90,19 @@ class PoBApp {
       this.gemRegistry = new GemRegistry(await resp.json());
     } catch (e) {
       console.error('Failed to load gem registry:', e);
+    }
+  }
+
+  async _loadSkillsData() {
+    try {
+      const [skillsResp, statMapResp] = await Promise.all([
+        fetch('js/data/skills.json'),
+        fetch('js/data/skill-stat-map.json'),
+      ]);
+      if (skillsResp.ok) this.skillsData = await skillsResp.json();
+      if (statMapResp.ok) this.skillStatMap = await statMapResp.json();
+    } catch (e) {
+      console.error('Failed to load skills data:', e);
     }
   }
 
@@ -1440,6 +1457,18 @@ class PoBApp {
       this._weaponData2 = itemEnv.player.weaponData2 || null;
     }
 
+    // Build active skill list and merge main skill mods
+    let mainSkill = null;
+    if (this.build?.skills && this.skillsData) {
+      const activeSkillList = buildActiveSkillList(this.build.skills, this.skillsData);
+      const mainIdx = this.build.mainSocketGroup || 0;
+      mainSkill = activeSkillList.find(s => s.groupIndex === mainIdx) || activeSkillList[0] || null;
+
+      if (mainSkill && this.skillStatMap) {
+        mergeSkillMods(modDB, mainSkill, this.skillStatMap);
+      }
+    }
+
     const output = {};
     const actor = { modDB, output };
 
@@ -1451,7 +1480,7 @@ class PoBApp {
 
     this.calcOutput = output;
 
-    if (this.sidebar) this.sidebar.update(output);
+    if (this.sidebar) this.sidebar.update(output, mainSkill);
     if (this.activeTab === 'Calcs') this._renderCalcsTab();
   }
 

@@ -6,7 +6,7 @@ export class StatSidebar {
     this.el = el;
   }
 
-  update(output) {
+  update(output, mainSkill) {
     const f = StatSidebar.formatNumber;
     const p = StatSidebar.formatPercent;
 
@@ -26,7 +26,29 @@ export class StatSidebar {
     const spellBlock = output.SpellBlockChance ?? 0;
     const suppression = output.SpellSuppressionChance ?? 0;
 
+    let skillHtml = '';
+    if (mainSkill) {
+      const rs = mainSkill.resolvedStats;
+      const castTime = mainSkill.castTime ?? rs?.castTime ?? null;
+      const critChance = rs?.critChance ?? null;
+      const cost = rs?.cost ?? null;
+      const dmgEff = rs?.damageEffectiveness ?? null;
+      const supports = mainSkill.supports || [];
+
+      skillHtml = `
+      <div class="stat-section">
+        <div class="stat-header">Main Skill</div>
+        <div class="stat-row"><span class="stat-label">Skill:</span><span class="stat-value skill-name">${mainSkill.name || '—'}</span></div>
+        ${castTime != null ? `<div class="stat-row"><span class="stat-label">Cast Time:</span><span class="stat-value">${castTime}s</span></div>` : ''}
+        ${critChance != null ? `<div class="stat-row"><span class="stat-label">Crit Chance:</span><span class="stat-value">${critChance}%</span></div>` : ''}
+        ${cost ? `<div class="stat-row"><span class="stat-label">Cost:</span><span class="stat-value">${Object.entries(cost).map(([k, v]) => `${v} ${k}`).join(', ')}</span></div>` : ''}
+        ${dmgEff != null ? `<div class="stat-row"><span class="stat-label">Dmg Effectiveness:</span><span class="stat-value">${Math.round(dmgEff * 100)}%</span></div>` : ''}
+        ${supports.length > 0 ? `<div class="stat-row"><span class="stat-label">Supports:</span><span class="stat-value">${supports.length}</span></div>` : ''}
+      </div>`;
+    }
+
     this.el.innerHTML = `
+      ${skillHtml}
       <div class="stat-section">
         <div class="stat-header">Attributes</div>
         <div class="stat-row"><span class="stat-label">Strength:</span><span class="stat-value">${f(str)}</span></div>

@@ -738,3 +738,6 @@ select.input-sm { padding: 2px 2px; }
 .btn-xs { padding: 1px 4px; font-size: 11px; }
 
 #add-gem { margin-top: 8px; }
+
+/* Sidebar skill display */
+.stat-value.skill-name { color: var(--gold); }

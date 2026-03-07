@@ -123,6 +123,31 @@ export function initModDB(modDB) {
     { type: 'Condition', var: 'Convergence' });
 }
 
+// --- Skill mod merging ---
+
+/**
+ * Merge active skill stats into the mod database.
+ * Uses skill-stat-map.json to convert game stat names to internal modifiers.
+ */
+export function mergeSkillMods(modDB, activeSkill, statMap) {
+  if (!activeSkill?.resolvedStats?.stats) return;
+
+  for (const [statName, value] of Object.entries(activeSkill.resolvedStats.stats)) {
+    const mapping = statMap[statName];
+    if (!mapping || !mapping.mods) continue;
+
+    for (const modDef of mapping.mods) {
+      let modValue = modDef.value ?? value;
+      if (mapping.div) modValue = value / mapping.div;
+      if (mapping.mult) modValue = value * mapping.mult;
+
+      if (modDef.fn === 'mod') {
+        modDB.newMod(modDef.name, modDef.type, modValue, 'Skill', modDef.flags || 0);
+      }
+    }
+  }
+}
+
 // --- Item mod merging ---
 
 const GEAR_SLOTS = [
